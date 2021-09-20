@@ -1,0 +1,197 @@
+
+import rospy
+import actionlib
+import sys
+import time
+import numpy as np
+import pygame
+from urdf_parser_py.urdf import URDF
+from pykdl_utils.kdl_kinematics import KDLKinematics
+import copy
+import pickle
+from std_msgs.msg import Float64MultiArray
+import torch
+from collections import deque
+from train_model import MLP
+
+from controller_manager_msgs.srv import (
+    SwitchController, 
+    SwitchControllerRequest, 
+    SwitchControllerResponse
+)
+
+from control_msgs.msg import (
+    FollowJointTrajectoryAction,
+    FollowJointTrajectoryGoal,
+    GripperCommandAction,
+    GripperCommandGoal,
+    GripperCommand
+)
+from trajectory_msgs.msg import (
+    JointTrajectoryPoint
+)
+from sensor_msgs.msg import (
+    JointState
+)
+from geometry_msgs.msg import(
+    TwistStamped,
+    Twist
+)
+
+HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
+ACTION_SCALE = 0.1
+MOVING_AVERAGE = 50
+
+class JoystickControl(object):
+
+    def __init__(self):
+        pygame.init()
+        self.gamepad = pygame.joystick.Joystick(0)
+        self.gamepad.init()
+        self.toggle = False
+        self.action = None
+
+    def getInput(self):
+        pygame.event.get()
+        START = self.gamepad.get_button(7)
+        A = self.gamepad.get_button(0)
+        B = self.gamepad.get_button(1)
+        return A, B, START
+
+
+class Model(object):    
+    def __init__(self):
+        self.model = MLP()
+        model_dict = torch.load("models/MLP_model", map_location='cpu')
+        self.model.load_state_dict(model_dict)
+        self.model.eval 
+
+    def decoder(self, state):
+        s_tensor = torch.FloatTensor(state)
+        action, log_std = self.model.decoder(s_tensor)
+        action = action.detach().numpy()
+        log_std = log_std.detach().numpy()
+        return action, np.exp(log_std)
+
+
+class TrajectoryClient(object):
+
+    def __init__(self):
+        # Action client for joint move commands
+        self.client = actionlib.SimpleActionClient(
+                '/scaled_pos_joint_traj_controller/follow_joint_trajectory',
+                FollowJointTrajectoryAction)
+        self.client.wait_for_server()
+        # Velocity commands publisher
+        self.vel_pub = rospy.Publisher('/joint_group_vel_controller/command',\
+                 Float64MultiArray, queue_size=10)
+        # Subscribers to update joint state
+        self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
+        # service call to switch controllers
+        self.switch_controller_cli = rospy.ServiceProxy('/controller_manager/switch_controller',\
+                 SwitchController)
+        self.joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",\
+                            "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+        self.base_link = "base_link"
+        self.end_link = "wrist_3_link"
+        self.joint_states = None
+        self.robot_urdf = URDF.from_parameter_server()
+        self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
+
+        # store previous joint vels for moving avg
+        self.qdots = deque(maxlen=MOVING_AVERAGE)
+        for idx in range(MOVING_AVERAGE):
+            self.qdots.append(np.asarray([0.0] * 6))
+
+    def joint_states_cb(self, msg):
+        states = list(msg.position)
+        states[2], states[0] = states[0], states[2]
+        self.joint_states = tuple(states) 
+    
+    def switch_controller(self, mode=None):
+        req = SwitchControllerRequest()
+        res = SwitchControllerResponse()
+
+        req.start_asap = False
+        req.timeout = 0.0
+        if mode == 'velocity':
+            req.start_controllers = ['joint_group_vel_controller']
+            req.stop_controllers = ['scaled_pos_joint_traj_controller']
+            req.strictness = req.STRICT
+        elif mode == 'position':
+            req.start_controllers = ['scaled_pos_joint_traj_controller']
+            req.stop_controllers = ['joint_group_vel_controller']
+            req.strictness = req.STRICT
+        else:
+            rospy.logwarn('Unkown mode for the controller!')
+
+        res = self.switch_controller_cli.call(req)
+
+    def xdot2qdot(self, xdot):
+        J = self.kdl_kin.jacobian(self.joint_states)
+        J_inv = np.linalg.pinv(J)
+        return J_inv.dot(xdot)
+
+    def send(self, qdot):
+        self.qdots.append(qdot)
+        qdot_mean = np.mean(self.qdots, axis=0).tolist()
+        cmd_vel = Float64MultiArray()
+        cmd_vel.data = qdot_mean
+        self.vel_pub.publish(cmd_vel)
+
+    def send_joint(self, pos, time):
+        waypoint = JointTrajectoryPoint()
+        waypoint.positions = pos
+        waypoint.time_from_start = rospy.Duration(time)
+        goal = FollowJointTrajectoryGoal()
+        goal.trajectory.joint_names = self.joint_names
+        goal.trajectory.points.append(waypoint)
+        goal.trajectory.header.stamp = rospy.Time.now()
+        self.client.send_goal(goal)
+        rospy.sleep(time)
+
+
+def main():
+    rospy.init_node("play_MLP")
+
+    mover = TrajectoryClient()
+    joystick = JoystickControl()
+    model = Model()
+
+    start_time = time.time()
+    rate = rospy.Rate(100)
+
+    print("[*] Initialized, Moving Home")
+    mover.switch_controller(mode='position')
+    mover.send_joint(HOME, 5.0)
+    mover.client.wait_for_result()
+    mover.switch_controller(mode='velocity')
+    print("[*] Ready for joystick inputs")
+
+    run = False
+    while not rospy.is_shutdown():
+        t_curr = time.time() - start_time
+        s = list(mover.joint_states)
+        a, std = model.decoder(s)
+        if np.linalg.norm(a) > ACTION_SCALE:
+            a = a / np.linalg.norm(a) * ACTION_SCALE
+        print(np.linalg.norm(std))
+
+        A, B, start = joystick.getInput()
+        if A:
+            run = True
+        if B:
+            run = False
+        if not run:
+            a = np.asarray([0.0] * 6)
+        if not run and start:
+            return True
+
+        mover.send(a)
+        rate.sleep()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except rospy.ROSInterruptException:
+        pass

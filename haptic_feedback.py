@@ -9,6 +9,7 @@ from pykdl_utils.kdl_kinematics import KDLKinematics
 import copy
 import pickle
 import torch
+from train_model import MLP
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -47,6 +48,21 @@ class JoystickControl(object):
         return A, B, START
 
 
+class Model(object):    
+    def __init__(self):
+        self.model = MLP()
+        model_dict = torch.load("models/MLP_model", map_location='cpu')
+        self.model.load_state_dict(model_dict)
+        self.model.eval 
+
+    def decoder(self, state):
+        s_tensor = torch.FloatTensor(state)
+        action, log_std = self.model.decoder(s_tensor)
+        action = action.detach().numpy()
+        log_std = log_std.detach().numpy()
+        return action, np.exp(log_std)
+
+
 class RecordClient(object):
 
     def __init__(self):
@@ -75,9 +91,10 @@ def main():
     filename = "demos/" + sys.argv[1] + ".pkl"
     data = []
     rospy.init_node("recorder")
-    rate = rospy.Rate(1000)    
+    rate = rospy.Rate(100)    
     recorder = RecordClient()
     joystick = JoystickControl()
+    model = Model()
 
     while not recorder.joint_states:
         pass
@@ -104,10 +121,17 @@ def main():
             start_time = time.time()
             print("[*] Recording...")
         s = list(recorder.joint_states)
+        a, std = model.decoder(s)
         curr_time = time.time()
         if record and curr_time - last_time > step_time:
             data.append(s)
             last_time = curr_time
+
+        # Here is where the haptic feedback commands go
+        
+        uncertainty = np.linalg.norm(std)
+
+        # end of haptic feedback commands
 
         rate.sleep()
 

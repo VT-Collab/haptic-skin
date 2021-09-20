@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+from torch.distributions import Normal
 import torch.optim as optim
 import pickle
 import numpy as np
@@ -20,25 +21,35 @@ class MotionData(Dataset):
 
 class MLP(nn.Module):
 
-    def __init__(self, latent_size):
+    def __init__(self):
         super(MLP, self).__init__()
 
         self.name = "MLP"
-        self.fc1 = nn.Linear(7, 30)
+        self.fc1 = nn.Linear(6, 30)
         self.fc2 = nn.Linear(30, 30)
-        self.fc3 = nn.Linear(30, 7)
+        self.mean_linear = nn.Linear(30, 6)
+        self.log_std_linear = nn.Linear(30, 6)
 
         self.loss_func = nn.MSELoss()
 
     def decoder(self, s):
         h1 = torch.tanh(self.fc1(s))
         h2 = torch.tanh(self.fc2(h1))
-        return self.fc3(h2)
+        mean = self.mean_linear(h2)
+        log_std = self.log_std_linear(h2)
+        log_std = torch.clamp(log_std, min=-2, max=2)
+        return mean, log_std
+
+    def sample(self, s):
+        mean, log_std = self.decoder(s)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        return normal.rsample()
 
     def forward(self, x):
-        s = x[:, 0:7]
-        a_target = x[:, 7:14]
-        a_decoded = self.decoder(s)
+        s = x[:, 0:6]
+        a_target = x[:, 6:12]
+        a_decoded = self.sample(s)
         loss = self.loss(a_decoded, a_target)
         return loss
 
@@ -49,7 +60,7 @@ class MLP(nn.Module):
 def main():
 
     model = MLP()
-    dataname = "data/file-of-upsampled-state-action-pairs.pkl"
+    dataname = "data/processed.pkl"
     savename = "models/MLP_model"
     data = pickle.load(open(dataname, "rb"))
 

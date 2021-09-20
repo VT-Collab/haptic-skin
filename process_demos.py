@@ -1,26 +1,27 @@
 import pickle
 import numpy as np
 import argparse
+import os
 
 
-filename = "file-of-saved-demonstrations.pkl"
-savename = "file-of-upsampled-state-action-pairs.pkl"
+savename = "processed.pkl"
 
 noise = 0.1
 n_upsamples = 10
+n_lookahead = 5
 
-data = pickle.load(open("data/" + filename, "rb"))
 sapairs = []
-for traj in data:
+for filename in os.listdir("demos"):
+    traj = pickle.load(open("demos/" + filename, "rb"))
+    print(filename, len(traj))
     traj = np.asarray(traj)
-    for idx in range(len(traj) - 1):
+    for idx in range(len(traj) - n_lookahead):
         s_base = traj[idx]
-        sp = traj[idx + 1]
+        sp = traj[idx + n_lookahead]
         for _ in range(n_upsamples):
-            s = np.copy(s_base) + np.random.normal(0, noise, 7)
+            s = np.copy(s_base) + np.random.normal(0, noise, 6)
             a = sp - s
             sapairs.append(s.tolist() + a.tolist())
 
-print(sapairs)
 print(len(sapairs))
 pickle.dump(sapairs, open("data/" + savename, "wb"))
