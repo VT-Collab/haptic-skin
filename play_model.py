@@ -158,7 +158,7 @@ def main():
 
     start_time = time.time()
     rate = rospy.Rate(100)
-    n_samples = 10
+    n_samples = 100
 
     print("[*] Initialized, Moving Home")
     mover.switch_controller(mode='position')
@@ -168,6 +168,7 @@ def main():
     print("[*] Ready for joystick inputs")
 
     run = False
+    shutdown = False
     while not rospy.is_shutdown():
         t_curr = time.time() - start_time
         s = list(mover.joint_states)
@@ -176,8 +177,11 @@ def main():
         for idx in range(n_samples):
             actions.append(model.decoder(s))
         actions = np.asarray(actions)
+        uncertainty = sum(np.std(actions, axis=0))
 
-        a = np.mean(actions, axis=0))
+        print(uncertainty)
+
+        a = np.mean(actions, axis=0)
         if np.linalg.norm(a) > ACTION_SCALE:
             a = a / np.linalg.norm(a) * ACTION_SCALE
 
@@ -186,9 +190,11 @@ def main():
             run = True
         if B:
             run = False
+            shutdown = True
+            time_stop = time.time()
         if not run:
             a = np.asarray([0.0] * 6)
-        if not run and start:
+        if not run and shutdown and time.time() - time_stop > 2.0:
             return True
 
         mover.send(a)

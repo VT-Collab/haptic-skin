@@ -105,7 +105,7 @@ def main():
 
     record = False
     step_time = 0.1
-    n_samples = 10
+    n_samples = 100
 
     while not rospy.is_shutdown():
 
@@ -133,7 +133,8 @@ def main():
 
         # Here is where the haptic feedback commands go
 
-        uncertainty = sum(np.std(actions, axis=0)))
+        uncertainty = sum(np.std(actions, axis=0))
+        print(uncertainty)
 
         # end of haptic feedback commands
 

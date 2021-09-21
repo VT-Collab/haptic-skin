@@ -6,8 +6,8 @@ import os
 
 savename = "processed.pkl"
 
-noise = 0.1
-n_upsamples = 10
+noise = 0.0
+n_upsamples = 1
 n_lookahead = 5
 
 sapairs = []
