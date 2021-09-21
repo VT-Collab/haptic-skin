@@ -48,19 +48,17 @@ class JoystickControl(object):
         return A, B, START
 
 
-class Model(object):    
+class Model(object):
     def __init__(self):
         self.model = MLP()
         model_dict = torch.load("models/MLP_model", map_location='cpu')
         self.model.load_state_dict(model_dict)
-        self.model.eval 
+        self.model.eval
 
     def decoder(self, state):
         s_tensor = torch.FloatTensor(state)
-        action, log_std = self.model.decoder(s_tensor)
-        action = action.detach().numpy()
-        log_std = log_std.detach().numpy()
-        return action, np.exp(log_std)
+        action = self.model.decoder(s_tensor).detach().numpy()
+        return action
 
 
 class RecordClient(object):
@@ -91,7 +89,7 @@ def main():
     filename = "demos/" + sys.argv[1] + ".pkl"
     data = []
     rospy.init_node("recorder")
-    rate = rospy.Rate(100)    
+    rate = rospy.Rate(100)
     recorder = RecordClient()
     joystick = JoystickControl()
     model = Model()
@@ -107,6 +105,7 @@ def main():
 
     record = False
     step_time = 0.1
+    n_samples = 10
 
     while not rospy.is_shutdown():
 
@@ -121,15 +120,20 @@ def main():
             start_time = time.time()
             print("[*] Recording...")
         s = list(recorder.joint_states)
-        a, std = model.decoder(s)
+
+        actions = []
+        for idx in range(n_samples):
+            actions.append(model.decoder(s))
+        actions = np.asarray(actions)
+
         curr_time = time.time()
         if record and curr_time - last_time > step_time:
             data.append(s)
             last_time = curr_time
 
         # Here is where the haptic feedback commands go
-        
-        uncertainty = np.linalg.norm(std)
+
+        uncertainty = sum(np.std(actions, axis=0)))
 
         # end of haptic feedback commands
 
@@ -140,5 +144,3 @@ if __name__ == "__main__":
         main()
     except rospy.ROSInterruptException:
         pass
-
-

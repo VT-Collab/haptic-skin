@@ -15,8 +15,8 @@ from collections import deque
 from train_model import MLP
 
 from controller_manager_msgs.srv import (
-    SwitchController, 
-    SwitchControllerRequest, 
+    SwitchController,
+    SwitchControllerRequest,
     SwitchControllerResponse
 )
 
@@ -59,19 +59,17 @@ class JoystickControl(object):
         return A, B, START
 
 
-class Model(object):    
+class Model(object):
     def __init__(self):
         self.model = MLP()
         model_dict = torch.load("models/MLP_model", map_location='cpu')
         self.model.load_state_dict(model_dict)
-        self.model.eval 
+        self.model.eval
 
     def decoder(self, state):
         s_tensor = torch.FloatTensor(state)
-        action, log_std = self.model.decoder(s_tensor)
-        action = action.detach().numpy()
-        log_std = log_std.detach().numpy()
-        return action, np.exp(log_std)
+        action = self.model.decoder(s_tensor).detach().numpy()
+        return action
 
 
 class TrajectoryClient(object):
@@ -106,8 +104,8 @@ class TrajectoryClient(object):
     def joint_states_cb(self, msg):
         states = list(msg.position)
         states[2], states[0] = states[0], states[2]
-        self.joint_states = tuple(states) 
-    
+        self.joint_states = tuple(states)
+
     def switch_controller(self, mode=None):
         req = SwitchControllerRequest()
         res = SwitchControllerResponse()
@@ -160,6 +158,7 @@ def main():
 
     start_time = time.time()
     rate = rospy.Rate(100)
+    n_samples = 10
 
     print("[*] Initialized, Moving Home")
     mover.switch_controller(mode='position')
@@ -172,10 +171,15 @@ def main():
     while not rospy.is_shutdown():
         t_curr = time.time() - start_time
         s = list(mover.joint_states)
-        a, std = model.decoder(s)
+
+        actions = []
+        for idx in range(n_samples):
+            actions.append(model.decoder(s))
+        actions = np.asarray(actions)
+
+        a = np.mean(actions, axis=0))
         if np.linalg.norm(a) > ACTION_SCALE:
             a = a / np.linalg.norm(a) * ACTION_SCALE
-        print(np.linalg.norm(std))
 
         A, B, start = joystick.getInput()
         if A:

@@ -25,31 +25,27 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
 
         self.name = "MLP"
-        self.fc1 = nn.Linear(6, 30)
-        self.fc2 = nn.Linear(30, 30)
-        self.mean_linear = nn.Linear(30, 6)
-        self.log_std_linear = nn.Linear(30, 6)
+        self.d = 0.1
+
+        self.mlp = nn.Sequential(
+            nn.Linear(6, 30),
+            nn.Tanh(),
+            nn.Dropout(self.d),
+            nn.Linear(30, 30),
+            nn.Tanh(),
+            nn.Dropout(self.d),
+            nn.Linear(30, 6)
+        )
 
         self.loss_func = nn.MSELoss()
 
     def decoder(self, s):
-        h1 = torch.tanh(self.fc1(s))
-        h2 = torch.tanh(self.fc2(h1))
-        mean = self.mean_linear(h2)
-        log_std = self.log_std_linear(h2)
-        log_std = torch.clamp(log_std, min=-2, max=2)
-        return mean, log_std
-
-    def sample(self, s):
-        mean, log_std = self.decoder(s)
-        std = log_std.exp()
-        normal = Normal(mean, std)
-        return normal.rsample()
+        return self.mlp(s)
 
     def forward(self, x):
         s = x[:, 0:6]
         a_target = x[:, 6:12]
-        a_decoded = self.sample(s)
+        a_decoded = self.decoder(s)
         loss = self.loss(a_decoded, a_target)
         return loss
 
