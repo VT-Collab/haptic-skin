@@ -21,11 +21,11 @@ from geometry_msgs.msg import(
     Twist
 )
 
-from ur_dashboard_msgs.srv import(
-    IsProgramRunning,
-    Load,
-    GetProgramState
-)
+# from ur_dashboard_msgs.srv import(
+#     IsProgramRunning,
+#     Load,
+#     GetProgramState
+# )
 
 
 HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
@@ -112,7 +112,7 @@ def main():
         A, B, start = joystick.getInput()
         if record and B:
             pickle.dump(data, open(filename, "wb"))
-            print(data)
+            print("I recorded this many data points:", len(data))
             return True
         elif not record and A:
             record = True
