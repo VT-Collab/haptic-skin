@@ -5,10 +5,12 @@ import time
 import numpy as np
 import pygame
 from urdf_parser_py.urdf import URDF
+from ur_msgs.srv import SetIO
 from pykdl_utils.kdl_kinematics import KDLKinematics
 import copy
 import pickle
 import torch
+from train_model import MLP
 import argparse
 
 from std_msgs.msg import Float64MultiArray, String
@@ -39,7 +41,13 @@ from geometry_msgs.msg import(
 )
 
 
-HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
+def analog_IO(fun, pin, state):
+    rospy.wait_for_service('/ur_hardware_interface/set_io')
+    try:
+        set_io = rospy.ServiceProxy('/ur_hardware_interface/set_io', SetIO)
+        set_io(fun = fun,pin = pin,state = state)
+    except rospy.ServiceException, e:
+        print "Unable to send pressure command: %s"%e
 
 
 class JoystickControl(object):
@@ -61,6 +69,19 @@ class JoystickControl(object):
         return A, B, X, Y, START
 
 
+class Model(object):
+    def __init__(self, task, segment):
+        self.model = MLP()
+        model_dict = torch.load("models/MLP_model_task" + str(task) + "_segment" + str(segment), map_location='cpu')
+        self.model.load_state_dict(model_dict)
+        self.model.eval
+
+    def decoder(self, state):
+        s_tensor = torch.FloatTensor(state)
+        action = self.model.decoder(s_tensor).detach().numpy()
+        return action
+
+
 class RecordClient(object):
 
     def __init__(self):
@@ -75,7 +96,6 @@ class RecordClient(object):
         self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
         self.script_pub = rospy.Publisher('/ur_hardware_interface/script_command', \
                                             String, queue_size=100)
-
         # Gripper action and client
         action_name = rospy.get_param('~action_name', 'command_robotiq_action')
         self.robotiq_client = actionlib.SimpleActionClient(action_name, \
@@ -107,20 +127,64 @@ class RecordClient(object):
         return self.robotiq_client.get_result()
 
 
+def scale_uncertainty(uncertainty, task):
+    if task == 1:
+        min_uncertainty = 0.0005
+        max_uncertainty = 0.005
+    if task == 2:
+        min_uncertainty = 0.0005
+        max_uncertainty = 0.005
+    if task == 3:
+        min_uncertainty = 0.0005
+        max_uncertainty = 0.005
+    uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
+    if uncertainty > 1.0:
+        uncertainty = 1.0
+    elif uncertainty < 0.0:
+        uncertainty = 0.0
+    return uncertainty
+
+
+def pressure_feedback(uncertainty):
+
+    min_pressure = 1
+    max_pressure = 3
+
+    pressure = min_pressure + (max_pressure - min_pressure) * uncertainty
+    if pressure > max_pressure:
+        pressure = max_pressure
+    if pressure < min_pressure:
+        pressure = min_pressure
+
+    state_a = pressure/30.0
+
+    print(uncertainty, pressure)
+    analog_IO(3, 0, state_a)
+
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
+    parser = argparse.ArgumentParser(description='haptic pressure feedback wrapped around the robot')
+    parser.add_argument('--user', type=int, default=0)
     parser.add_argument('--task', type=int, default=0)
+    parser.add_argument('--segment', type=int, default=0)
     parser.add_argument('--trial', type=int, default=0)
     args = parser.parse_args()
 
-    filename = "demos/task" + str(args.task) + "/trial" + str(args.trial) + ".pkl"
+    filename = "demos/user" + str(args.user) + "/robot/task" + str(args.task) + "_trial" + str(args.trial) + ".pkl"
+
+    if args.trial == 1:
+        HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
+    else:
+        HOME = pickle.load(open("home.pkl", "rb"))
+
     data = []
     rospy.init_node("recorder")
-    rate = rospy.Rate(100)    
+    rate = rospy.Rate(100)
     recorder = RecordClient()
     joystick = JoystickControl()
+    model = Model(args.task, args.segment)
+    analog_IO(3, 0, 0.0)
 
     while not recorder.joint_states:
         pass
@@ -135,14 +199,17 @@ def main():
     print("[*] Press B to STOP Recording")
 
     record = False
-    segment = 0
     step_time = 0.05
-    gripper_open = True
+    n_samples = 100
+    start_time = time.time()
 
     while not rospy.is_shutdown():
 
-        s = list(recorder.joint_states)
+        curr_time = time.time() - start_time
+
         A, B, X, Y, start = joystick.getInput()
+        if start:
+            pickle.dump(s, open("home.pkl", "wb"))
         if X and gripper_open:
             recorder.actuate_gripper(0.05, 0.1, 1)
             gripper_open = False
@@ -150,22 +217,35 @@ def main():
             recorder.actuate_gripper(1, 0.1, 1)
             gripper_open = True
         if record and B:
+            recorder.actuate_gripper(1, 0.1, 1)
             pickle.dump(data, open(filename, "wb"))
-            print(data)
+            print("I recorded this many data points:", len(data))
+            analog_IO(3, 0, 0.0)
             return True
         elif not record and A:
             record = True
             last_time = time.time()
             start_time = time.time()
-            time_last_segment = time.time()
             print("[*] Recording...")
+        s = list(recorder.joint_states)
+
+        actions = []
+        for idx in range(n_samples):
+            actions.append(model.decoder(s))
+        actions = np.asarray(actions)
+
         curr_time = time.time()
-        if start and record and curr_time - time_last_segment > 0.5:
-            segment += 1
-            time_last_segment = time.time()
         if record and curr_time - last_time > step_time:
-            data.append(s + [segment])
+            data.append(s)
             last_time = curr_time
+
+        # Here is where the haptic feedback commands go
+
+        uncertainty = sum(np.std(actions, axis=0))
+        scaled_uncertainty = scale_uncertainty(uncertainty, args.task)
+        pressure_feedback(scaled_uncertainty)
+
+        # end of haptic feedback commands
 
         rate.sleep()
 
@@ -174,5 +254,3 @@ if __name__ == "__main__":
         main()
     except rospy.ROSInterruptException:
         pass
-
-

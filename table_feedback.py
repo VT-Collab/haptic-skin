@@ -11,6 +11,7 @@ import copy
 import pickle
 import torch
 from train_model import MLP
+import argparse
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -39,15 +40,6 @@ from geometry_msgs.msg import(
     Twist
 )
 
-# from ur_dashboard_msgs.srv import(
-#     IsProgramRunning,
-#     Load,
-#     GetProgramState
-# )
-
-
-HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
-
 
 def analog_IO(fun, pin, state):
     rospy.wait_for_service('/ur_hardware_interface/set_io')
@@ -57,14 +49,6 @@ def analog_IO(fun, pin, state):
     except rospy.ServiceException, e:
         print "Unable to send pressure command: %s"%e
 
-
-def digital_IO(fun, pin, state):
-    rospy.wait_for_service('/ur_hardware_interface/set_io')
-    try:
-        set_io = rospy.ServiceProxy('/ur_hardware_interface/set_io', SetIO)
-        set_io(fun = fun,pin = pin,state = state)
-    except rospy.ServiceException, e:
-        print "Something went wrong: %s"%e
 
 class JoystickControl(object):
 
@@ -86,9 +70,9 @@ class JoystickControl(object):
 
 
 class Model(object):
-    def __init__(self):
+    def __init__(self, task, segment):
         self.model = MLP()
-        model_dict = torch.load("models/MLP_model", map_location='cpu')
+        model_dict = torch.load("models/MLP_model_task" + str(task) + "_segment" + str(segment), map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
 
@@ -143,20 +127,30 @@ class RecordClient(object):
         return self.robotiq_client.get_result()
 
 
-def pressure_feedback(uncertainty, time):
+def scale_uncertainty(uncertainty, task):
+    if task == 1:
+        min_uncertainty = 0.0005
+        max_uncertainty = 0.005
+    if task == 2:
+        min_uncertainty = 0.0005
+        max_uncertainty = 0.005
+    if task == 3:
+        min_uncertainty = 0.0005
+        max_uncertainty = 0.005
+    uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
+    if uncertainty > 1.0:
+        uncertainty = 1.0
+    elif uncertainty < 0.0:
+        uncertainty = 0.0
+    return uncertainty
 
-    fun_a = 3                         # 3 = ANALOG CURRENT OUTPUT
-    pin_a = 0
 
-    fun_d = 1
-    pin_d = 0
-    state_d0 = 0
-    state_d1 = 1
+def pressure_feedback(uncertainty):
 
-    min_pressure = 0
+    min_pressure = 1
     max_pressure = 3
 
-    pressure = min_pressure + (max_pressure - min_pressure)* ((uncertainty-0.0005)/0.005)
+    pressure = min_pressure + (max_pressure - min_pressure) * uncertainty
     if pressure > max_pressure:
         pressure = max_pressure
     if pressure < min_pressure:
@@ -165,16 +159,31 @@ def pressure_feedback(uncertainty, time):
     state_a = pressure/30.0
 
     print(uncertainty, pressure)
-    analog_IO(fun_a, pin_a, state_a)
+    analog_IO(3, 0, state_a)
+
 
 def main():
-    filename = "demos/" + sys.argv[1] + ".pkl"
+
+    parser = argparse.ArgumentParser(description='haptic pressure feedback on the flat table')
+    parser.add_argument('--user', type=int, default=0)
+    parser.add_argument('--task', type=int, default=0)
+    parser.add_argument('--segment', type=int, default=0)
+    parser.add_argument('--trial', type=int, default=0)
+    args = parser.parse_args()
+
+    filename = "demos/user" + str(args.user) + "/task/table" + str(args.task) + "_trial" + str(args.trial) + ".pkl"
+
+    if args.trial == 1:
+        HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
+    else:
+        HOME = pickle.load(open("home.pkl", "rb"))
+
     data = []
     rospy.init_node("recorder")
     rate = rospy.Rate(100)
     recorder = RecordClient()
     joystick = JoystickControl()
-    model = Model()
+    model = Model(args.task, args.segment)
     analog_IO(3, 0, 0.0)
 
     while not recorder.joint_states:
@@ -183,22 +192,24 @@ def main():
     rospy.sleep(1)
     recorder.send_cmd('movel(' + str(HOME) + ')')
     rospy.sleep(2)
+    recorder.actuate_gripper(1, 0.1, 1)
+    gripper_open = True
+    rospy.sleep(0.5)    
     print("[*] Press A to START Recording")
     print("[*] Press B to STOP Recording")
 
     record = False
-    step_time = 0.1
+    step_time = 0.05
     n_samples = 100
     start_time = time.time()
-
-    recorder.actuate_gripper(1, 0.1, 1)
-    gripper_open = True
 
     while not rospy.is_shutdown():
 
         curr_time = time.time() - start_time
 
         A, B, X, Y, start = joystick.getInput()
+        if start:
+            pickle.dump(s, open("home.pkl", "wb"))
         if X and gripper_open:
             recorder.actuate_gripper(0.05, 0.1, 1)
             gripper_open = False
@@ -231,7 +242,8 @@ def main():
         # Here is where the haptic feedback commands go
 
         uncertainty = sum(np.std(actions, axis=0))
-        pressure_feedback(uncertainty, curr_time)
+        scaled_uncertainty = scale_uncertainty(uncertainty, args.task)
+        pressure_feedback(scaled_uncertainty)
 
         # end of haptic feedback commands
 
