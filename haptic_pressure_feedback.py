@@ -1,5 +1,5 @@
-
 import rospy
+import actionlib
 import sys
 import time
 import numpy as np
@@ -13,6 +13,23 @@ import torch
 from train_model import MLP
 
 from std_msgs.msg import Float64MultiArray, String
+
+from robotiq_2f_gripper_msgs.msg import (
+    CommandRobotiqGripperFeedback, 
+    CommandRobotiqGripperResult, 
+    CommandRobotiqGripperAction, 
+    CommandRobotiqGripperGoal
+)
+
+from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import (
+    Robotiq2FingerGripperDriver as Robotiq
+)
+
+from control_msgs.msg import (
+    GripperCommandAction,
+    GripperCommandGoal,
+    GripperCommand
+)
 
 from sensor_msgs.msg import (
     JointState
@@ -41,6 +58,14 @@ def analog_IO(fun, pin, state):
         print "Unable to send pressure command: %s"%e
 
 
+def digital_IO(fun, pin, state):
+    rospy.wait_for_service('/ur_hardware_interface/set_io')
+    try:
+        set_io = rospy.ServiceProxy('/ur_hardware_interface/set_io', SetIO)
+        set_io(fun = fun,pin = pin,state = state)
+    except rospy.ServiceException, e:
+        print "Something went wrong: %s"%e
+
 class JoystickControl(object):
 
     def __init__(self):
@@ -55,7 +80,9 @@ class JoystickControl(object):
         START = self.gamepad.get_button(7)
         A = self.gamepad.get_button(0)
         B = self.gamepad.get_button(1)
-        return A, B, START
+        X = self.gamepad.get_button(2)
+        Y = self.gamepad.get_button(3)
+        return A, B, X, Y, START
 
 
 class Model(object):
@@ -85,39 +112,60 @@ class RecordClient(object):
         self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
         self.script_pub = rospy.Publisher('/ur_hardware_interface/script_command', \
                                             String, queue_size=100)
+        # Gripper action and client
+        action_name = rospy.get_param('~action_name', 'command_robotiq_action')
+        self.robotiq_client = actionlib.SimpleActionClient(action_name, \
+                                CommandRobotiqGripperAction)
+        self.robotiq_client.wait_for_server()
+        # Initialize gripper
+        goal = CommandRobotiqGripperGoal()
+        goal.emergency_release = False
+        goal.stop = False
+        goal.position = 1.00
+        goal.speed = 0.1
+        goal.force = 5.0
+        # Sends the goal to the gripper.
+        self.robotiq_client.send_goal(goal)
 
     def joint_states_cb(self, msg):
-        states = list(msg.position)
-        states[2], states[0] = states[0], states[2]
-        self.joint_states = tuple(states)
+        try:
+            states = list(msg.position)
+            states[2], states[0] = states[0], states[2]
+            self.joint_states = tuple(states)
+        except:
+            pass
 
     def send_cmd(self, cmd):
         self.script_pub.publish(cmd)
 
+    def actuate_gripper(self, pos, speed, force):
+        Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
+        return self.robotiq_client.get_result()
+
 
 def pressure_feedback(uncertainty, time):
+
+    fun_a = 3                         # 3 = ANALOG CURRENT OUTPUT
+    pin_a = 0
+
+    fun_d = 1
+    pin_d = 0
+    state_d0 = 0
+    state_d1 = 1
+
     min_pressure = 0
-    max_pressure = 2
+    max_pressure = 3
 
-    pressure = max_pressure
-
-
-    # pressure = min_pressure + (max_pressure - min_pressure)* (uncertainty/0.3)
+    pressure = min_pressure + (max_pressure - min_pressure)* ((uncertainty-0.0005)/0.005)
     if pressure > max_pressure:
         pressure = max_pressure
     if pressure < min_pressure:
         pressure = min_pressure
 
-    fun_a = 3                         # 3 = ANALOG CURRENT OUTPUT
-    pin_a = 0
-
-
     state_a = pressure/30.0
 
-    print(state_a, pressure)
+    print(uncertainty, pressure)
     analog_IO(fun_a, pin_a, state_a)
-
-
 
 def main():
     filename = "demos/" + sys.argv[1] + ".pkl"
@@ -143,12 +191,22 @@ def main():
     n_samples = 100
     start_time = time.time()
 
+    recorder.actuate_gripper(1, 0.1, 1)
+    gripper_open = True
+
     while not rospy.is_shutdown():
 
         curr_time = time.time() - start_time
 
-        A, B, start = joystick.getInput()
+        A, B, X, Y, start = joystick.getInput()
+        if X and gripper_open:
+            recorder.actuate_gripper(0.05, 0.1, 1)
+            gripper_open = False
+        if Y and not gripper_open:
+            recorder.actuate_gripper(1, 0.1, 1)
+            gripper_open = True
         if record and B:
+            recorder.actuate_gripper(1, 0.1, 1)
             pickle.dump(data, open(filename, "wb"))
             print("I recorded this many data points:", len(data))
             analog_IO(3, 0, 0.0)

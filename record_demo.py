@@ -89,10 +89,12 @@ def main():
     print("[*] Press B to STOP Recording")
 
     record = False
-    step_time = 0.1
+    segment = 0
+    step_time = 0.05
 
     while not rospy.is_shutdown():
 
+        s = list(recorder.joint_states)
         A, B, start = joystick.getInput()
         if record and B:
             pickle.dump(data, open(filename, "wb"))
@@ -102,11 +104,14 @@ def main():
             record = True
             last_time = time.time()
             start_time = time.time()
+            time_last_segment = time.time()
             print("[*] Recording...")
-        s = list(recorder.joint_states)
         curr_time = time.time()
+        if start and record and curr_time - time_last_segment > 0.5:
+            segment += 1
+            time_last_segment = time.time()
         if record and curr_time - last_time > step_time:
-            data.append(s)
+            data.append(s + [segment])
             last_time = curr_time
 
         rate.sleep()

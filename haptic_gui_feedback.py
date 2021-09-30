@@ -11,6 +11,7 @@ import copy
 import pickle
 import torch
 from train_model import MLP
+from Tkinter import *
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -31,6 +32,25 @@ from geometry_msgs.msg import(
 
 HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
 
+
+
+
+def analog_IO(fun, pin, state):
+    rospy.wait_for_service('/ur_hardware_interface/set_io')
+    try:
+        set_io = rospy.ServiceProxy('/ur_hardware_interface/set_io', SetIO)
+        set_io(fun = fun,pin = pin,state = state)
+    except rospy.ServiceException, e:
+        print "Unable to send pressure command: %s"%e
+
+
+def digital_IO(fun, pin, state):
+    rospy.wait_for_service('/ur_hardware_interface/set_io')
+    try:
+        set_io = rospy.ServiceProxy('/ur_hardware_interface/set_io', SetIO)
+        set_io(fun = fun,pin = pin,state = state)
+    except rospy.ServiceException, e:
+        print "Something went wrong: %s"%e
 
 class JoystickControl(object):
 
@@ -78,42 +98,52 @@ class RecordClient(object):
                                             String, queue_size=100)
 
     def joint_states_cb(self, msg):
-        states = list(msg.position)
-        states[2], states[0] = states[0], states[2]
-        self.joint_states = tuple(states)
+        try:
+            states = list(msg.position)
+            states[2], states[0] = states[0], states[2]
+            self.joint_states = tuple(states)
+        except:
+            pass
 
     def send_cmd(self, cmd):
         self.script_pub.publish(cmd)
 
 
-def pressure_feedback(uncertainty):
-    
-    ## Pressures:
-    min_pressure = 0
-    max_pressure = 5
-    safety_pressure = 9
-    pressure = min_pressure + (max_pressure - min_pressure)* uncertainty/0.2
+def pressure_feedback(uncertainty, time):
 
-
-    ## Frequencies:
-    min_frequency = 0.5
-    max_frequency = 10
-    safety_frequency = 12
-    frequency = min_frequency + (max_frequency - min_frequency)* uncertainty/0.2
-
-    run_time = 5                            # Inflates the bags for 5 secs
-
-    fun_a = 3                               # 3 = ANALOG CURRENT OUTPUT
+    fun_a = 3                         # 3 = ANALOG CURRENT OUTPUT
     pin_a = 0
-    state_a1 = pressure/30.0                 # Varies the state from 0 to 1
-    state_a2 = 0
 
-    if pressure < safety_pressure:
-        analog_IO(fun_a, pin_a, state_a1)
-        time.sleep(run_time)
-        analog_IO(fun_a, pin_a, state_a2)
-    else:
-        print("The pressure is too high. P = " + pressure)
+    fun_d = 1
+    pin_d = 0
+    state_d0 = 0
+    state_d1 = 1
+
+    min_pressure = 0
+    max_pressure = 3
+
+    # pressure = max_pressure * 0.5 + max_pressure*0.5*np.sin(time)
+    # digital_IO(fun_d, pin_d, state_d1)
+
+    # if np.sin(time)  >= 0:
+    #     digital_IO(fun_d, pin_d, state_d0)
+    # else:
+    #     digital_IO(fun_d, pin_d, state_d1)
+
+
+    # uncertainty -= 0.003
+    pressure = min_pressure + (max_pressure - min_pressure)* (uncertainty/0.005)
+    if pressure > max_pressure:
+        pressure = max_pressure
+    if pressure < min_pressure:
+        pressure = min_pressure
+
+    state_a = pressure/30.0
+
+    print(uncertainty, pressure)
+    analog_IO(fun_a, pin_a, state_a)
+
+
 
 
 def main():
@@ -124,6 +154,7 @@ def main():
     recorder = RecordClient()
     joystick = JoystickControl()
     model = Model()
+    analog_IO(3, 0, 0.0)
 
     while not recorder.joint_states:
         pass
@@ -137,13 +168,28 @@ def main():
     record = False
     step_time = 0.1
     n_samples = 100
+    start_time = time.time()
+
+
+    root = Tk()
+    root.title("Uncertainity Output")
+
+    myLabel1 = Label(root, text = "Uncertainty")
+    myLabel1.grid(row = 0, column = 0, pady = 10, padx = 30)
+
+    textbox1 = Entry(root, width = 10, bg = "white", fg = "#676767", borderwidth = 3)
+    textbox1.grid(row = 0, column = 1,  pady = 10, padx = 20)
+    textbox1.insert(0,0)
 
     while not rospy.is_shutdown():
+
+        curr_time = time.time() - start_time
 
         A, B, start = joystick.getInput()
         if record and B:
             pickle.dump(data, open(filename, "wb"))
             print("I recorded this many data points:", len(data))
+            analog_IO(3, 0, 0.0)
             return True
         elif not record and A:
             record = True
@@ -165,15 +211,25 @@ def main():
         # Here is where the haptic feedback commands go
 
         uncertainty = sum(np.std(actions, axis=0))
+        pressure_feedback(uncertainty, curr_time)
 
-        print(uncertainty)
-        pressure_feedback(uncertainty)
         # end of haptic feedback commands
+
+
+        # Code for the GUI
+        gui_number = (uncertainty/0.3)*100
+
+        textbox1.delete(0, END)
+        textbox1.insert(0, round(gui_number,1))
+        root.update()
 
         rate.sleep()
 
+
+
+
 if __name__ == "__main__":
     try:
-        main()
+        main()        
     except rospy.ROSInterruptException:
         pass

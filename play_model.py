@@ -181,7 +181,7 @@ def main():
 
         print(uncertainty)
 
-        a = np.mean(actions, axis=0)
+        a = np.mean(actions, axis=0) * 10.0
         if np.linalg.norm(a) > ACTION_SCALE:
             a = a / np.linalg.norm(a) * ACTION_SCALE
 
