@@ -67,15 +67,14 @@ def main():
 
     folder = "demos/task" + str(args.task)
 
-    noise = 0.0
-    n_upsamples = 1
+    noise = 0.01
+    n_upsamples = 10
     n_lookahead = 1
     n_excluded = 0
 
     sapairs = []
     for filename in os.listdir(folder):
         traj = pickle.load(open(folder + "/" + filename, "rb"))
-        print(folder, filename, len(traj))
         traj = np.asarray(traj)
         for idx in range(len(traj) - n_lookahead):
             if traj[idx][6] == args.segment - 1:
@@ -87,6 +86,7 @@ def main():
                 s = np.copy(s_base) + np.random.normal(0, noise, 6)
                 a = sp - s
                 sapairs.append(s.tolist() + a.tolist())
+        print(folder, filename, len(traj), n_excluded)
 
     print("state-action pairs: ", len(sapairs), "excluded data: ", n_excluded)
 

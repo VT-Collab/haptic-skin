@@ -130,14 +130,14 @@ class RecordClient(object):
 
 def scale_uncertainty(uncertainty, task):
     if task == 1:
-        min_uncertainty = 0.0005
-        max_uncertainty = 0.005
+        min_uncertainty = 0.0
+        max_uncertainty = 0.05
     if task == 2:
-        min_uncertainty = 0.0005
-        max_uncertainty = 0.005
+        min_uncertainty = 0.004
+        max_uncertainty = 0.01
     if task == 3:
-        min_uncertainty = 0.0005
-        max_uncertainty = 0.005
+        min_uncertainty = 0.0
+        max_uncertainty = 0.05
     uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
     if uncertainty > 1.0:
         uncertainty = 1.0

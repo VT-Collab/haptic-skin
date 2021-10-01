@@ -52,7 +52,7 @@ from geometry_msgs.msg import(
 
 
 HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
-ACTION_SCALE = 0.2
+ACTION_SCALE = 0.15
 MOVING_AVERAGE = 10
 
 class JoystickControl(object):
@@ -205,7 +205,7 @@ def main():
     mover.switch_controller(mode='velocity')
     print("[*] Ready for velocity commands")
 
-    recorder.actuate_gripper(1, 0.1, 1)
+    mover.actuate_gripper(1, 0.1, 1)
     gripper_open = True
     rospy.sleep(0.5)
 
@@ -225,16 +225,16 @@ def main():
 
         print(uncertainty)
 
-        a = np.mean(actions, axis=0) * 20.0
+        a = np.mean(actions, axis=0) * 100.0
         if np.linalg.norm(a) > ACTION_SCALE:
             a = a / np.linalg.norm(a) * ACTION_SCALE
 
         A, B, X, Y, start = joystick.getInput()
         if X and gripper_open:
-            recorder.actuate_gripper(0.05, 0.1, 1)
+            mover.actuate_gripper(0.05, 0.1, 1)
             gripper_open = False
         if Y and not gripper_open:
-            recorder.actuate_gripper(1, 0.1, 1)
+            mover.actuate_gripper(1, 0.1, 1)
             gripper_open = True
         if A:
             run = True
@@ -245,7 +245,7 @@ def main():
         if not run:
             a = np.asarray([0.0] * 6)
         if not run and shutdown and time.time() - time_stop > 2.0:
-            recorder.actuate_gripper(1, 0.1, 1)
+            mover.actuate_gripper(1, 0.1, 1)
             return True
 
         mover.send(a)
