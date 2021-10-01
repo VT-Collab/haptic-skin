@@ -12,8 +12,8 @@ import sys
 
 class MotionData(Dataset):
 
-    def __init__(self, filename):
-        self.data = pickle.load(open(filename, "rb"))
+    def __init__(self, data):
+        self.data = data
 
     def __len__(self):
         return len(self.data)
@@ -58,13 +58,14 @@ class MLP(nn.Module):
 
 def main():
 
+    ### create dataset
+
     parser = argparse.ArgumentParser(description='process demos and train model for a specific task')
     parser.add_argument('--task', type=int, default=0)
     parser.add_argument('--segment', type=int, default=0)
     args = parser.parse_args()
 
     folder = "demos/task" + str(args.task)
-    savename = "processed.pkl"
 
     noise = 0.0
     n_upsamples = 1
@@ -88,12 +89,12 @@ def main():
                 sapairs.append(s.tolist() + a.tolist())
 
     print("state-action pairs: ", len(sapairs), "excluded data: ", n_excluded)
-    pickle.dump(sapairs, open("data/" + savename, "wb"))
+
+    ### train model from dataset
 
     model = MLP()
-    dataname = "data/processed.pkl"
     savename = "models/MLP_model_task" + str(args.task) + "_segment" + str(args.segment)
-    data = pickle.load(open(dataname, "rb"))
+    data = sapairs
 
     EPOCH = 1000
     BATCH_SIZE_TRAIN = int(len(data) / 10.0)
@@ -101,7 +102,7 @@ def main():
     LR_STEP_SIZE = 360
     LR_GAMMA = 0.1
 
-    train_data = MotionData(dataname)
+    train_data = MotionData(data)
     train_set = DataLoader(dataset=train_data, batch_size=BATCH_SIZE_TRAIN, shuffle=True)
 
     optimizer = optim.Adam(model.parameters(), lr=LR)
@@ -114,7 +115,8 @@ def main():
             loss.backward()
             optimizer.step()
         scheduler.step()
-        print(epoch, loss.item())
+        if epoch % 100 == 0:
+            print(epoch, loss.item())
     torch.save(model.state_dict(), savename)
 
 
