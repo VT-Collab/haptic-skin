@@ -17,9 +17,9 @@ from Tkinter import *
 from std_msgs.msg import Float64MultiArray, String
 
 from robotiq_2f_gripper_msgs.msg import (
-    CommandRobotiqGripperFeedback, 
-    CommandRobotiqGripperResult, 
-    CommandRobotiqGripperAction, 
+    CommandRobotiqGripperFeedback,
+    CommandRobotiqGripperResult,
+    CommandRobotiqGripperAction,
     CommandRobotiqGripperGoal
 )
 
@@ -130,14 +130,14 @@ class RecordClient(object):
 
 def scale_uncertainty(uncertainty, task):
     if task == 1:
-        min_uncertainty = 0.0
-        max_uncertainty = 0.05
+        min_uncertainty = 0.005
+        max_uncertainty = 0.020
     if task == 2:
-        min_uncertainty = 0.004
-        max_uncertainty = 0.01
+        min_uncertainty = 0.005
+        max_uncertainty = 0.015
     if task == 3:
-        min_uncertainty = 0.0
-        max_uncertainty = 0.05
+        min_uncertainty = 0.005
+        max_uncertainty = 0.020
     uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
     if uncertainty > 1.0:
         uncertainty = 1.0
@@ -205,7 +205,7 @@ def main():
     rospy.sleep(2)
     recorder.actuate_gripper(1, 0.1, 1)
     gripper_open = True
-    rospy.sleep(0.5)    
+    rospy.sleep(0.5)
     print("[*] Press A to START Recording")
     print("[*] Press B to STOP Recording")
 

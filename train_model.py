@@ -28,7 +28,7 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
 
         self.name = "MLP"
-        self.d = 0.1
+        self.d = 0.2
 
         self.mlp = nn.Sequential(
             nn.Linear(6, 30),
