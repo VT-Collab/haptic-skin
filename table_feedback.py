@@ -127,7 +127,7 @@ class RecordClient(object):
         Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
         return self.robotiq_client.get_result()
 
-def scale_uncertainty(uncertainty, task, segment):
+def scale_uncertainty(uncertainty, task, segment, my_segment):
     if task == 1:
         min_uncertainty = 0.005
         max_uncertainty = 0.014
@@ -137,22 +137,17 @@ def scale_uncertainty(uncertainty, task, segment):
     if task == 3:
         min_uncertainty = 0.005
         max_uncertainty = 0.0170
-    if segment == 2:
-        max_uncertainty = max_uncertainty - 0.001
-    if task == 2 and segment == 3:
-        max_uncertainty = max_uncertainty + 0.001
-    if task == 1 and segment == 2:
-        max_uncertainty = max_uncertainty - 0.0015
-    if task == 3 and segment == 2:
-        max_uncertainty = max_uncertainty - 0.0015
 
     uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
+    if segment == my_segment:
+        uncertainty *= 1.25
+    else:
+        uncertainty *= 0.5
     if uncertainty > 1.0:
         uncertainty = 1.0
     elif uncertainty < 0.0:
         uncertainty = 0.0
     return uncertainty
-
 
 def pressure_feedback(uncertainty):
 
@@ -212,6 +207,7 @@ def main():
     step_time = 0.05
     n_samples = 100
     start_time = time.time()
+    my_segment = 1
 
     while not rospy.is_shutdown():
 
@@ -223,9 +219,11 @@ def main():
         if X and gripper_open:
             recorder.actuate_gripper(0.05, 0.1, 1)
             gripper_open = False
+            my_segment += 1
         if Y and not gripper_open:
             recorder.actuate_gripper(1, 0.1, 1)
             gripper_open = True
+            my_segment += 1            
         if record and B:
             recorder.actuate_gripper(1, 0.1, 1)
             pickle.dump(data, open(filename, "wb"))
@@ -237,7 +235,7 @@ def main():
         #    recorder.actuate_gripper(1, 0.1, 1)
        #     pickle.dump(data, open(filename, "wb"))
             print("I recorded this many data points:", data_points)
-            analog_IO(3, 0, 0.0)           
+            analog_IO(3, 0, 0.0)
             return True
 
         elif not record and A:
