@@ -66,7 +66,8 @@ class JoystickControl(object):
         B = self.gamepad.get_button(1)
         X = self.gamepad.get_button(2)
         Y = self.gamepad.get_button(3)
-        return A, B, X, Y, START
+        BACK = self.gamepad.get_button(6)
+        return A, B, X, Y, START, BACK
 
 
 class Model(object):
@@ -126,17 +127,25 @@ class RecordClient(object):
         Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
         return self.robotiq_client.get_result()
 
-
-def scale_uncertainty(uncertainty, task):
+def scale_uncertainty(uncertainty, task, segment):
     if task == 1:
         min_uncertainty = 0.005
-        max_uncertainty = 0.0185
+        max_uncertainty = 0.014
     if task == 2:
         min_uncertainty = 0.005
-        max_uncertainty = 0.0175
+        max_uncertainty = 0.012
     if task == 3:
         min_uncertainty = 0.005
-        max_uncertainty = 0.020
+        max_uncertainty = 0.0170
+    if segment == 2:
+        max_uncertainty = max_uncertainty - 0.001
+    if task == 2 and segment == 3:
+        max_uncertainty = max_uncertainty + 0.001
+    if task == 1 and segment == 2:
+        max_uncertainty = max_uncertainty - 0.0015
+    if task == 3 and segment == 2:
+        max_uncertainty = max_uncertainty - 0.0015
+
     uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
     if uncertainty > 1.0:
         uncertainty = 1.0
@@ -171,7 +180,7 @@ def main():
     parser.add_argument('--trial', type=int, default=0)
     args = parser.parse_args()
 
-    filename = "demos/user" + str(args.user) + "/task/table" + str(args.task) + "_trial" + str(args.trial) + ".pkl"
+    filename = "demos/user" + str(args.user) + "/table/task" + str(args.task) + "_trial" + str(args.trial) + ".pkl"
 
     if args.trial == 1:
         HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
@@ -197,6 +206,7 @@ def main():
     rospy.sleep(0.5)
     print("[*] Press A to START Recording")
     print("[*] Press B to STOP Recording")
+    print("[*] Press BACK to STOP Program")
 
     record = False
     step_time = 0.05
@@ -207,7 +217,7 @@ def main():
 
         curr_time = time.time() - start_time
 
-        A, B, X, Y, start = joystick.getInput()
+        A, B, X, Y, start, BACK = joystick.getInput()
         if start:
             pickle.dump(s, open("home.pkl", "wb"))
         if X and gripper_open:
@@ -220,8 +230,16 @@ def main():
             recorder.actuate_gripper(1, 0.1, 1)
             pickle.dump(data, open(filename, "wb"))
             print("I recorded this many data points:", len(data))
-            analog_IO(3, 0, 0.0)
+            #analog_IO(3, 0, 0.0)
+            #return True
+            data_points = len(data)
+        if record and BACK:
+        #    recorder.actuate_gripper(1, 0.1, 1)
+       #     pickle.dump(data, open(filename, "wb"))
+            print("I recorded this many data points:", data_points)
+            analog_IO(3, 0, 0.0)           
             return True
+
         elif not record and A:
             record = True
             last_time = time.time()
@@ -242,7 +260,7 @@ def main():
         # Here is where the haptic feedback commands go
 
         uncertainty = sum(np.std(actions, axis=0))
-        scaled_uncertainty = scale_uncertainty(uncertainty, args.task)
+        scaled_uncertainty = scale_uncertainty(uncertainty, args.task, args.segment)
         pressure_feedback(scaled_uncertainty)
 
         # end of haptic feedback commands

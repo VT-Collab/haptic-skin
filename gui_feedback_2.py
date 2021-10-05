@@ -12,6 +12,7 @@ import pickle
 import torch
 from train_model import MLP
 import argparse
+from Tkinter import *
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -66,8 +67,7 @@ class JoystickControl(object):
         B = self.gamepad.get_button(1)
         X = self.gamepad.get_button(2)
         Y = self.gamepad.get_button(3)
-        BACK = self.gamepad.get_button(6)
-        return A, B, X, Y, START, BACK
+        return A, B, X, Y, START
 
 
 class Model(object):
@@ -174,14 +174,14 @@ def pressure_feedback(uncertainty):
 
 def main():
 
-    parser = argparse.ArgumentParser(description='haptic pressure feedback wrapped around the robot')
+    parser = argparse.ArgumentParser(description='haptic pressure feedback shown on the gui')
     parser.add_argument('--user', type=int, default=0)
     parser.add_argument('--task', type=int, default=0)
     parser.add_argument('--segment', type=int, default=0)
     parser.add_argument('--trial', type=int, default=0)
     args = parser.parse_args()
 
-    filename = "demos/user" + str(args.user) + "/robot/task" + str(args.task) + "_trial" + str(args.trial) + ".pkl"
+    filename = "demos/user" + str(args.user) + "/gui/task" + str(args.task) + "_trial" + str(args.trial) + ".pkl"
 
     if args.trial == 1:
         HOME = [-1.45, -1.88, -1.80,-0.97, 1.54, -0.02]
@@ -199,6 +199,16 @@ def main():
     while not recorder.joint_states:
         pass
 
+
+    root = Tk()
+    root.title("Uncertainity Output")
+    myLabel1 = Label(root, text = "Uncertainty", font=("Arial", 40))
+    myLabel1.grid(row = 0, column = 0, pady = 100, padx = 100)
+    textbox1 = Entry(root, width = 10, bg = "white", fg = "#676767", borderwidth = 3, font=("Arial", 40))
+    textbox1.grid(row = 0, column = 1,  pady = 10, padx = 20)
+    textbox1.insert(0,0)
+    update_time = 0.5
+
     rospy.sleep(1)
     recorder.send_cmd('movel(' + str(HOME) + ')')
     rospy.sleep(2)
@@ -207,18 +217,18 @@ def main():
     rospy.sleep(0.5)
     print("[*] Press A to START Recording")
     print("[*] Press B to STOP Recording")
-    print("[*] Press BACK to STOP Program")
 
     record = False
     step_time = 0.05
     n_samples = 100
     start_time = time.time()
+    last_update = time.time()
 
     while not rospy.is_shutdown():
 
         curr_time = time.time() - start_time
 
-        A, B, X, Y, start, BACK = joystick.getInput()
+        A, B, X, Y, start = joystick.getInput()
         if start:
             pickle.dump(s, open("home.pkl", "wb"))
         if X and gripper_open:
@@ -231,17 +241,8 @@ def main():
             recorder.actuate_gripper(1, 0.1, 1)
             pickle.dump(data, open(filename, "wb"))
             print("I recorded this many data points:", len(data))
-            # analog_IO(3, 0, 0.0)
-            data_points = len(data)
-           # return True
-        if record and BACK:
-        #    recorder.actuate_gripper(1, 0.1, 1)
-       #     pickle.dump(data, open(filename, "wb"))
-            print("I recorded this many data points:", data_points)
-            analog_IO(3, 0, 0.0)           
+            analog_IO(3, 0, 0.0)
             return True
-
-
         elif not record and A:
             record = True
             last_time = time.time()
@@ -263,7 +264,15 @@ def main():
 
         uncertainty = sum(np.std(actions, axis=0))
         scaled_uncertainty = scale_uncertainty(uncertainty, args.task, args.segment)
-        pressure_feedback(scaled_uncertainty)
+        gui_number = scaled_uncertainty * 100.0
+
+        if curr_time - last_update > update_time:
+            textbox1.delete(0, END)
+            textbox1.insert(0, round(gui_number,1))
+            root.update()
+            last_update = time.time()
+
+        rate.sleep()
 
         # end of haptic feedback commands
 
