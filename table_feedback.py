@@ -127,7 +127,7 @@ class RecordClient(object):
         Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
         return self.robotiq_client.get_result()
 
-def scale_uncertainty(uncertainty, task, segment, my_segment):
+def scale_uncertainty(uncertainty, task, segment):#, my_segment):
     if task == 1:
         min_uncertainty = 0.005
         max_uncertainty = 0.014
@@ -139,10 +139,10 @@ def scale_uncertainty(uncertainty, task, segment, my_segment):
         max_uncertainty = 0.0170
 
     uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
-    if segment == my_segment:
-        uncertainty *= 1.25
-    else:
-        uncertainty *= 0.5
+    # if segment == my_segment:
+    #     uncertainty *= 1.0
+    # else:
+    #     uncertainty *= 1.0
     if uncertainty > 1.0:
         uncertainty = 1.0
     elif uncertainty < 0.0:

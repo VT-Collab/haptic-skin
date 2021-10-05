@@ -128,7 +128,7 @@ class RecordClient(object):
         return self.robotiq_client.get_result()
 
 
-def scale_uncertainty(uncertainty, task, segment, my_segment):
+def scale_uncertainty(uncertainty, task, segment): #, my_segment):
     if task == 1:
         min_uncertainty = 0.005
         max_uncertainty = 0.014
@@ -140,10 +140,10 @@ def scale_uncertainty(uncertainty, task, segment, my_segment):
         max_uncertainty = 0.0170
 
     uncertainty = (uncertainty - min_uncertainty) / (max_uncertainty - min_uncertainty)
-    if segment == my_segment:
-        uncertainty *= 1.25
-    else:
-        uncertainty *= 0.5
+    # if segment == my_segment:
+    #     uncertainty *= 1.0
+    # else:
+    #     uncertainty *= 1.0
     if uncertainty > 1.0:
         uncertainty = 1.0
     elif uncertainty < 0.0:
@@ -261,7 +261,7 @@ def main():
         # Here is where the haptic feedback commands go
 
         uncertainty = sum(np.std(actions, axis=0))
-        scaled_uncertainty = scale_uncertainty(uncertainty, args.task, args.segment, my_segment)
+        scaled_uncertainty = scale_uncertainty(uncertainty, args.task, args.segment)#, my_segment)
         pressure_feedback(scaled_uncertainty)
 
         # end of haptic feedback commands
