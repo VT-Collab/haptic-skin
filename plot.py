@@ -83,9 +83,9 @@ def time_metric():
     mgl = np.mean(gl)
     mgt = np.mean(gt)
     mgr = np.mean(gr)
-    sgl = np.std(gl) / np.sqrt(10)
-    sgt = np.std(gt) / np.sqrt(10)
-    sgr = np.std(gr) / np.sqrt(10)
+    sgl = np.std(gl) / np.sqrt(len(gl))
+    sgt = np.std(gt) / np.sqrt(len(gt))
+    sgr = np.std(gr) / np.sqrt(len(gr))
     return [mgl, mgt, mgr, sgl, sgt, sgr]
 
 def get_xyz(user, method, task, trial):
@@ -153,10 +153,25 @@ def segment_metric():
     mgc = np.mean(gc)
     mtc = np.mean(tc)
     mrc = np.mean(rc)
-    sgc = np.std(gc) / np.sqrt(10)
-    stc = np.std(tc) / np.sqrt(10)
-    src = np.std(rc) / np.sqrt(10)
+    sgc = np.std(gc) / np.sqrt(len(gc))
+    stc = np.std(tc) / np.sqrt(len(tc))
+    src = np.std(rc) / np.sqrt(len(rc))
     return [mgc, mtc, mrc, sgc, stc, src]
+
+def uncertainty_metric():
+    U = pickle.load(open("demos/uncertainty.pkl", "rb"))
+    g = U[0]
+    t = U[1]
+    r = U[2]
+    mg = np.mean(g)
+    mt = np.mean(t)
+    mr = np.mean(r)
+    sg = np.std(g) / np.sqrt(len(g))
+    st = np.std(t) / np.sqrt(len(t))
+    sr = np.std(r) / np.sqrt(len(r))
+    return [mg, mt, mr, sg, st, sr]
+
+
 
 t = time_metric()
 print(t)
@@ -165,6 +180,12 @@ plt.bar(x, t[:3], yerr=t[3:])
 plt.show()
 
 t = segment_metric()
+print(t)
+x = [1, 2, 3]
+plt.bar(x, t[:3], yerr=t[3:])
+plt.show()
+
+t = uncertainty_metric()
 print(t)
 x = [1, 2, 3]
 plt.bar(x, t[:3], yerr=t[3:])

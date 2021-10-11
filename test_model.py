@@ -8,9 +8,9 @@ import os
 
 
 class Model(object):
-    def __init__(self, task, segment):
+    def __init__(self, modelname):
         self.model = MLP()
-        model_dict = torch.load("models/MLP_model_task" + str(task) + "_segment" + str(segment), map_location='cpu')
+        model_dict = torch.load(modelname, map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
 
@@ -19,36 +19,35 @@ class Model(object):
         action = self.model.decoder(s_tensor).detach().numpy()
         return action
 
+def process(method, n_samples=100):
+    U = []
+    for user in range(4, 14):
+        for task in range(1, 4):
+            modelname = "models/user" + str(user) + "_" + method + "_task" + str(task)
+            model = Model(modelname)
+            file = "demos/user" + str(user) + "/" + method + "/task" + str(task) + "_trial1.pkl"
+            uncertainty = []
+            with open(file, "rb") as f:
+                traj = pickle.load(f, encoding="latin1")
+                print(modelname, file)
+                for state in traj:
+                    s = state[0]
+                    actions = []
+                    for idx in range(n_samples):
+                        actions.append(model.decoder(s.tolist()))
+                    actions = np.asarray(actions)
+                    uncertainty.append(sum(np.std(actions, axis=0)))
+            U.append(sum(uncertainty))
+    return U
+
 
 def main():
 
-    parser = argparse.ArgumentParser(description='visualize where the model is uncertain')
-    parser.add_argument('--task', type=int, default=0)
-    parser.add_argument('--segment', type=int, default=0)
-    args = parser.parse_args()
-    model = Model(args.task, args.segment)
-
-    n_samples = 100
-    noise = 0.01
-
-    folder = "demos/task" + str(args.task)
-    for filename in os.listdir(folder):
-        data = pickle.load(open(folder + "/" + filename, "rb"))
-        print(folder, filename)
-        uncertainty = []
-        segment = []
-        for state in data:
-            s = np.asarray(state[:6]) +  np.random.normal(0, noise, 6)
-            actions = []
-            for idx in range(n_samples):
-                actions.append(model.decoder(s.tolist()))
-            actions = np.asarray(actions)
-            uncertainty.append(sum(np.std(actions, axis=0)))
-            segment.append(state[6])
-        segment = np.asarray(segment) * max(uncertainty) / 2.0
-        plt.plot(range(len(uncertainty)), uncertainty)
-    plt.title("task " + str(args.task) + " segment " + str(args.segment))
-    plt.show()
+    u_gui = process("gui")
+    u_table = process("table")
+    u_robot = process("robot")
+    data = [u_gui, u_table, u_robot]
+    pickle.dump(data, open("uncertainty.pkl", "wb"))
 
 
 if __name__ == "__main__":
