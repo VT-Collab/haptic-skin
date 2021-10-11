@@ -65,8 +65,8 @@ SEGMENT ={(1,1,'gui'):1,(1,2,'gui'):1,(1,3,'gui'):3,
 def get_len(user, method, task, trial):
     file = "demos/user" + str(user) + "/" + method + "/task" + str(task) + "_trial" + str(trial) + ".pkl"
     with open(file, "rb") as f:
-            traj = pickle.load(f, encoding="latin1")
-            return len(traj)
+        traj = pickle.load(f, encoding="latin1")
+        return len(traj)
 
 def total_times(method):
     trial = 2
@@ -92,12 +92,12 @@ def get_xyz(user, method, task, trial):
     file = "demos/user" + str(user) + "/" + method + "/task" + str(task) + "_trial" + str(trial) + ".pkl"
     ee_path = []
     with open(file, "rb") as f:
-            traj = pickle.load(f, encoding="latin1")
-            for state in traj:
-                pose = state[1]
-                xyz = pose[:3,3]
-                ee_path.append([xyz[0], xyz[1], xyz[2]])
-            return np.asarray(ee_path)
+        traj = pickle.load(f, encoding="latin1")
+        for state in traj:
+            pose = state[1]
+            xyz = pose[:3,3]
+            ee_path.append([xyz[0], xyz[1], xyz[2]])
+    return np.asarray(ee_path)
 
 def classify_xyz(task, xyz):
     x = xyz[0]
