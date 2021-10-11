@@ -40,8 +40,9 @@ Segment_dict ={(1,1,'GUI'):1,(1,2,'GUI'):1,(1,3,'GUI'):3,
     (10,1,'GUI'):1,(10,2,'GUI'):1,(10,3,'GUI'):3,
     (10,1,'FLAT'):1,(10,2,'FLAT'):3,(10,3,'FLAT'):1,
     (10,1,'ROBOT'):3,(10,2,'ROBOT'):1,(10,3,'ROBOT'):1,}
+
 filename = 'segments'
 pickle.dump(Segment_dict, open(filename, "wb"))
     
-    # Segment = Segment_dict{(user,task,method)}
+    # Segment = Segment_dict[(user,task,method)]
     #method = 'GUI', 'ROBOT', 'FLAT'
