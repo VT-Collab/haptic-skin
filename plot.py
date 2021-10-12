@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import sys
+import csv
 
 ### CODE FOR THE LIKERT SCALE PLOTS
 
@@ -71,8 +72,8 @@ def get_len(user, method, task, trial):
 def total_times(method):
     trial = 2
     lengths = []
-    for user in range(4, 14):
-        for task in range(1, 4):
+    for task in range(1, 4):
+        for user in range(4, 14):
             lengths.append(get_len(user, method, task, trial))
     return np.asarray(lengths) * 0.05
 
@@ -80,6 +81,12 @@ def time_metric():
     gl = total_times("gui")
     gt = total_times("table")
     gr = total_times("robot")
+    f = open('drawing/time.csv', 'w')
+    writer = csv.writer(f)
+    writer.writerow(gl)
+    writer.writerow(gt)
+    writer.writerow(gr)
+    f.close()
     mgl = np.mean(gl)
     mgt = np.mean(gt)
     mgr = np.mean(gr)
@@ -138,8 +145,8 @@ def classify_traj(user, method, task, trial):
 def total_segments(method):
     trial = 2
     percentage_correct = []
-    for user in range(4, 14):
-        for task in range(1, 4):
+    for task in range(1, 4):
+        for user in range(4, 14):
             correct_segment = SEGMENT[(user-3, task, method)] - 1
             segment_counts = classify_traj(user, method, task, trial)
             correct = segment_counts[correct_segment]
@@ -150,6 +157,12 @@ def segment_metric():
     gc = total_segments("gui")
     tc = total_segments("table")
     rc = total_segments("robot")
+    f = open('drawing/segment.csv', 'w')
+    writer = csv.writer(f)
+    writer.writerow(gc)
+    writer.writerow(tc)
+    writer.writerow(rc)
+    f.close()
     mgc = np.mean(gc)
     mtc = np.mean(tc)
     mrc = np.mean(rc)
@@ -163,6 +176,12 @@ def uncertainty_metric():
     g = U[0]
     t = U[1]
     r = U[2]
+    f = open('drawing/uncertainty.csv', 'w')
+    writer = csv.writer(f)
+    writer.writerow(g)
+    writer.writerow(t)
+    writer.writerow(r)
+    f.close()
     mg = np.mean(g)
     mt = np.mean(t)
     mr = np.mean(r)

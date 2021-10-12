@@ -21,8 +21,8 @@ class Model(object):
 
 def process(method, n_samples=100):
     U = []
-    for user in range(4, 14):
-        for task in range(1, 4):
+    for task in range(1, 4):
+        for user in range(4, 14):
             modelname = "models/user" + str(user) + "_" + method + "_task" + str(task)
             model = Model(modelname)
             file = "demos/user" + str(user) + "/" + method + "/task" + str(task) + "_trial1.pkl"
