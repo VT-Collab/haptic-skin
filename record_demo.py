@@ -10,7 +10,7 @@ import copy
 import pickle
 import torch
 import argparse
-from positions import HOME, Goals
+from positions import HOME, RETURN, Goals
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -112,8 +112,8 @@ class RecordClient(object):
 def main():
 
     parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
-    parser.add_argument('--trial', type=str, default=0)
-    parser.add_argument('--goal', type=str, default=0)
+    parser.add_argument('--trial', type=str, default='0')
+    parser.add_argument('--goal', type=str, default='0')
     args = parser.parse_args()
 
     filename = "demos/object_" + args.goal + "_" + args.trial + ".pkl"
@@ -127,6 +127,11 @@ def main():
         pass
 
     rospy.sleep(1)
+
+    # for waypoint in RETURN:
+    #     recorder.send_cmd('movel(' + str(waypoint) + ')')
+    #     rospy.sleep(1)
+
     recorder.send_cmd('movel(' + str(HOME) + ')')
     rospy.sleep(2)
     recorder.actuate_gripper(1, 0.1, 1)
@@ -147,6 +152,7 @@ def main():
 
         s = list(recorder.joint_states)
         # print(recorder.forward_kinematics(s))
+        
         
         A, B, X, Y, start = joystick.getInput()
         if X and gripper_open:

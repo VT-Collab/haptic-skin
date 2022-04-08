@@ -1,9 +1,26 @@
-# robot home joint positions
-HOME = [-1.45, -1.3, -2.4,-0.97, 1.54, 1.57]
+import numpy as np
 
-# goal ee positions, starting from left to right side of the table: Goal1, Goal2, Goal3
+########## robot home joint positions ##########
+HOME = [-np.pi/2, -1.3, -2.4,-0.97, 1.54, np.pi]
+
+
+########## path to return home ##########
+START = [-1.3470400015460413, -1.5744760672198694, -1.839905087147848, 0.2290031909942627, 1.3797277212142944, -3.1415708700763147]
+MID = [-1.3477461973773401, -1.4543269316302698, -2.1123107115374964, -0.6161673704730433, 1.496045470237732, -3.1415348688708704]
+RETURN = [START, MID, HOME]
+
+
+########## goal ee positions ##########
 Goals = {}
+
+
+########## goals on the table, left to right: 1, 2, 3 ##########
 Goals["Goal1"] = [-0.22381943, 1, 0.3]
 Goals["Goal2"] = [-0.03997585, 1, 3]
 Goals["Goal3"] = [0.14716873, 1, 0.3]
+
+
+########## goal on the shelf ##########
+Goals["Goal4"] = [-0.0318279, 0.88176698, 0.55647]
+
 
