@@ -24,7 +24,7 @@ class Robot(object):
     def forward_kinematics(self, s, end_link="wrist_3_link", base_link="base_link"):
 
     	return self.kdl_kin.forward(s)
-
+print("test")
 
 
 
