@@ -52,8 +52,8 @@ class BC(nn.Module):
 
 def main():
 
-    EPOCH = 700
-    BATCH_SIZE_TRAIN = 1000
+    EPOCH = 1000
+    BATCH_SIZE_TRAIN = 600
     LR = 0.001
     LR_STEP_SIZE = 1000
     LR_GAMMA = 0.1
