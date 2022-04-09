@@ -253,9 +253,16 @@ def main():
         for item in quat_pairs:
             action_quat_d += Quaternion.absolute_distance(item[0], item[1]) / len(quat_pairs)
 
-        uncertainty1 = (action_xyz_std[0] + action_xyz_std[1]) / 2.0 * 1.5
-        uncertainty2 = action_xyz_std[2] * 1.0
-        uncertainty3 = action_quat_d * 0.6
+
+        # hyperparameters
+        hyper_xy = 0.5
+        hyper_z = 1.0
+        hyper_orien = 0.1
+
+
+        uncertainty1 = (action_xyz_std[0] + action_xyz_std[1]) / 2.0 * hyper_xy
+        uncertainty2 = action_xyz_std[2] * hyper_z
+        uncertainty3 = action_quat_d * hyper_orien
        
 
         uncertainty1 = round(uncertainty1 * 100, 2)
@@ -265,11 +272,11 @@ def main():
         most_uncertain = np.argmax(uncertainty)
    
 
-        if most_uncertain == 0:# and uncertainty1 >= 0.5:
+        if most_uncertain == 0:
             uncertain_name = "X-Y"
-        elif most_uncertain == 1:# and uncertainty2 >= 0.5:
+        elif most_uncertain == 1:
             uncertain_name = "-Z-"
-        elif most_uncertain == 2:# and uncertainty3 >= 0.5:
+        elif most_uncertain == 2:
             uncertain_name = "ROT"
         else:
             uncertain_name = " "    
