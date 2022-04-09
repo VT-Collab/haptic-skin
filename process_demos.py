@@ -5,7 +5,7 @@ import os, sys
 
 folder = "demos"
 
-noise = 0.008        #hyperparameter
+noise = 0.01        #hyperparameter
 n_upsamples = 10
 n_lookahead = 1
 
