@@ -75,51 +75,22 @@ def pressure2current(p):
 
 def main():
 	rospy.init_node("pressure_calibration")
-	# rate = rospy.Rate(1)
 	mover = TC()
+	rate = rospy.Rate(100)
+
 
 	while not rospy.is_shutdown():
 		
-		user_input = input("\n Enter Pressure values: [arduino_P, A1_P, A2_P]: ")
-		signal = (8*user_input/15 + 4)/1000
-		mover.analog_io(0, 0, signal)
+		P = input("Pressures: ")
+
+		signal_P1 = (8*P/15 + 4)/1000
+		signal_P2 = (8*P/15 + 4)/1000
+
+		# print(signal_P1, signal_P2)
 		
-		
-		# analog_IO(3, 0, pressure2current(user_input))
-		# analog_IO(3, 0, 4)
-
-
-
-
-	# send_pressures(user_input)
-
-		
-	
-	# p1 = user_input[0]
-	# p2 = user_input[1]
-	# p3 = user_input[2]
-
-	# # if ((p1 >= 0.) and (p2 >= 0.) and (p3 >= 0.) and (p1 <= 30.) and (p2 <= 30.) and (p3 <= 30.)):
-	# send_arduino(p1)
-	# state1 = p2/30.0
-	# state2 = p3/30.0
-	# analog_IO(3, 0, state1)
-	# analog_IO(3, 1, state2)
-	# # else:
-	# # 	print("Invalid input.")
-	# 	# rate.sleep()
-
-
-# [0,0,0]
-# [1,1,1]
-# [3,3,3]
-# [1,2,3]
-# [3,2,1]
-# [2,1,2]
-# [3,1,3]
-
-
-
+		mover.analog_io(0, 0, signal_P1)
+		mover.analog_io(0, 1, signal_P2)
+		rate.sleep()
 
 
 if __name__ == "__main__":

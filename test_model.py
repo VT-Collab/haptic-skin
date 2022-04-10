@@ -15,6 +15,8 @@ import serial
 from pyquaternion import Quaternion
 import itertools
 from positions import HOME, Goals
+from __future__ import division
+from utils import TrajectoryClient as TR
 import argparse
 
 from std_msgs.msg import Float64MultiArray, String
@@ -164,6 +166,9 @@ def joint2pose(joint_states):
         xyz = np.asarray(xyz_lin[-1]).tolist() + np.asarray(xyz_ang).tolist()
         return xyz
 
+def pressure2current(p):
+    # convert pressure [psi] to current [mA]
+    return (8*p/15 + 4)/1000
 
 def main():
     parser = argparse.ArgumentParser(description='playing rolled-out policy')
@@ -184,6 +189,7 @@ def main():
     model5 = Model("MLP_model_5")
     
     ur10 = Robot()
+    transducer = TR()
 
     goal = Goals['Goal' + args.goal]
     while not recorder.joint_states:
@@ -243,7 +249,6 @@ def main():
         xyz4, quat4, _ = ur10.forward_kinematics(s_array + a4)
         xyz5, quat5, _ = ur10.forward_kinematics(s_array + a5)
         actions_xyz = np.array([xyz1, xyz2, xyz3, xyz4, xyz5])
-        # print('actions_xyz = ', actions_xyz)
 
         action_xyz_std = np.std(actions_xyz, axis=0)
         actions_quat = [quat1, quat2, quat3, quat4, quat5]
@@ -253,18 +258,15 @@ def main():
         for item in quat_pairs:
             action_quat_d += Quaternion.absolute_distance(item[0], item[1]) / len(quat_pairs)
 
-
         # hyperparameters
         hyper_xy = 0.5
         hyper_z = 1.0
         hyper_orien = 0.1
 
-
         uncertainty1 = (action_xyz_std[0] + action_xyz_std[1]) / 2.0 * hyper_xy
         uncertainty2 = action_xyz_std[2] * hyper_z
         uncertainty3 = action_quat_d * hyper_orien
        
-
         uncertainty1 = round(uncertainty1 * 100, 2)
         uncertainty2 = round(uncertainty2 * 100, 2)
         uncertainty3 = round(uncertainty3 * 100, 2)
@@ -287,39 +289,11 @@ def main():
         uncertainty2 = np.clip(uncertainty2, 0.0, 3.0)
         uncertainty3 = np.clip(uncertainty3, 0.0, 3.0)
 
-
-        # # Option 3: Same as option 2, but with Euler angles
-        # s_array = np.array(s)
-        # pose_xyz1 = joint2pose(s_array + a1)
-        # pose_xyz2 = joint2pose(s_array + a2)
-        # pose_xyz3 = joint2pose(s_array + a3)
-        # pose_xyz4 = joint2pose(s_array + a4)
-        # pose_xyz5 = joint2pose(s_array + a5)
         
-        # actions_pose = np.array([pose_xyz1, pose_xyz2, pose_xyz3, pose_xyz4, pose_xyz5])
-        # action_pose_std = np.std(actions_pose, axis=0)
+        transducer.analog_io(0, 0, pressure2current(uncertainty1))
+        transducer.analog_io(0, 1, pressure2current(uncertainty1))
 
-        # uncertainty1 = (action_pose_std[0] + action_pose_std[1]) / 2.0 * 1.0
-        # uncertainty2 = action_pose_std[2] * 1.0
-        # uncertainty3 = (action_pose_std[3] + action_pose_std[4] + action_pose_std[5])/3
-
-        # uncertainty1 = round(uncertainty1* 2, 2)
-        # uncertainty2 = round(uncertainty2* 10, 2)
-        # uncertainty3 = round(uncertainty3* 2, 2)
-        # uncertainty = np.array([uncertainty1, uncertainty2, uncertainty3])
-        # most_uncertain = np.argmax(uncertainty)
-        # if most_uncertain == 0:
-        #     uncertain_name = "X-Y"
-        # elif most_uncertain == 1:
-        #     uncertain_name = "-Z-"
-        # elif most_uncertain == 2:
-        #     uncertain_name = "ROT"     
-
-        # print(uncertain_name, uncertainty1, uncertainty2, uncertainty3)
-
-        # uncertainty1 = np.clip(uncertainty1, 0.0, 3.0)
-        # uncertainty2 = np.clip(uncertainty2, 0.0, 3.0)
-        # uncertainty3 = np.clip(uncertainty3, 0.0, 3.0)
+        
 
 
 
