@@ -16,6 +16,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from std_msgs.msg import Float64MultiArray, String
+from ur_msgs.msg import IOStates
 
 from robotiq_2f_gripper_msgs.msg import (
     CommandRobotiqGripperFeedback, 
@@ -52,10 +53,6 @@ from geometry_msgs.msg import(
     Twist
 )
 
-
-from train_classifier_old import Net
-from train_cae_old import CAE
-from tasks import HOME
 
 STEP_SIZE_L = 0.15
 STEP_SIZE_A = 0.2 * np.pi / 4
@@ -119,6 +116,10 @@ class TrajectoryClient(object):
                  Float64MultiArray, queue_size=100)
         # Subscribers to update joint state
         self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
+        # Subscriber for io states
+        self.io_sub = rospy.Subscriber('/ur_hardware_interface/io_states', IOStates, self.io_cb)
+        # publisher for script commands
+        self.script_pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=2)
         # service call to switch controllers
         self.switch_controller_cli = rospy.ServiceProxy('/controller_manager/switch_controller',\
                  SwitchController)
@@ -127,6 +128,7 @@ class TrajectoryClient(object):
         self.base_link = "base_link"
         self.end_link = "wrist_3_link"
         self.joint_states = None
+        self.io_states = None
         self.robot_urdf = URDF.from_parameter_server()
         self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
         
@@ -156,6 +158,13 @@ class TrajectoryClient(object):
                 states = list(msg.position)
                 states[2], states[0] = states[0], states[2]
                 self.joint_states = tuple(states) 
+        except:
+            pass
+
+    def io_cb(self, msg):
+        try:
+            if msg is not None:
+                self.io_states = msg
         except:
             pass
     
@@ -245,6 +254,26 @@ class TrajectoryClient(object):
     def actuate_gripper(self, pos, speed, force):
         Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
         return self.robotiq_client.get_result()
+
+    def analog_io(self, d_type, pin, val):
+        # for current
+        if d_type == 0:
+            normalized_val = (val - 0.004) / 0.016
+        elif d_type == 1:
+            normalized_val = val / 10
+
+        msg = "sec MyProgram():" + "\n" + \
+                "set_analog_outputdomain(" + str(pin) + "," + str(d_type) + ")\n" + \
+                "set_analog_out(" + str(pin) + "," + str(normalized_val) + ")\n" + \
+                "end " + "\n"
+        n_time = 0
+        print(self.io_states.analog_out_states[pin].state, val)
+        while abs(self.io_states.analog_out_states[pin].state - val) > 0.001 or n_time < 10:
+            n_time += 1
+            self.script_pub.publish(msg)
+            print(self.io_states.analog_out_states[pin].state, normalized_val)  
+
+
 
 def go2home():
     mover = TrajectoryClient()
