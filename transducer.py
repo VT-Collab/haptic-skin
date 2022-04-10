@@ -77,12 +77,12 @@ def main():
 	rospy.init_node("pressure_calibration")
 	# rate = rospy.Rate(1)
 	mover = TC()
-	print(mover.io_states)
 
-	# while not rospy.is_shutdown():
-	mover.analog_io(0, 0, 0.004)
-	print(mover.io_states.analog_out_states[0].state)
-		# user_input = input("\n Enter Pressure values: [arduino_P, A1_P, A2_P]: ")
+	while not rospy.is_shutdown():
+		
+		user_input = input("\n Enter Pressure values: [arduino_P, A1_P, A2_P]: ")
+		signal = (8*user_input/15 + 4)/1000
+		mover.analog_io(0, 0, signal)
 		
 		
 		# analog_IO(3, 0, pressure2current(user_input))

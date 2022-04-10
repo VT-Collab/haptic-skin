@@ -256,9 +256,10 @@ class TrajectoryClient(object):
         return self.robotiq_client.get_result()
 
     def analog_io(self, d_type, pin, val):
-        # for current
+        # current [mA]
         if d_type == 0:
             normalized_val = (val - 0.004) / 0.016
+        # current [V]
         elif d_type == 1:
             normalized_val = val / 10
 
@@ -267,11 +268,9 @@ class TrajectoryClient(object):
                 "set_analog_out(" + str(pin) + "," + str(normalized_val) + ")\n" + \
                 "end " + "\n"
         n_time = 0
-        print(self.io_states.analog_out_states[pin].state, val)
         while abs(self.io_states.analog_out_states[pin].state - val) > 0.001 or n_time < 10:
             n_time += 1
             self.script_pub.publish(msg)
-            print(self.io_states.analog_out_states[pin].state, normalized_val)  
 
 
 
