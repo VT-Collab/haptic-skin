@@ -217,7 +217,6 @@ def main():
     start_time = time.time()
     last_update = time.time()
 
-
     rospy.sleep(1)
     recorder.send_cmd('movel(' + str(HOME) + ')')
     rospy.sleep(2)
@@ -334,7 +333,6 @@ def main():
             textbox3.insert(0, round(gui_number3,1))
             root.update()
             last_update = time.time()
-
 
 
         rate.sleep()

@@ -18,6 +18,9 @@ import itertools
 from positions import HOME, Goals
 from utils import TrajectoryClient as TR
 import argparse
+from Tkinter import *
+from utils import interface_GUI
+
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -188,12 +191,16 @@ def send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown):
     comm_transducer.analog_io(0, 1, signal_P[2])
 
 
-
 def main():
     parser = argparse.ArgumentParser(description='playing rolled-out policy')
     parser.add_argument('--goal', type=str, default=0)
+    parser.add_argument('--feature', type=str, help='rendering uncertainty: XY, Z, ROT', default=None)
     args = parser.parse_args()
  
+    start_time = time.time()
+    last_time = time.time()
+    
+
     data = []
     rospy.init_node("recorder")
     rate = rospy.Rate(100)
@@ -203,6 +210,7 @@ def main():
     comm_transducer = TR()
     recorder = RecordClient()
     joystick = JoystickControl()
+    GUI = interface_GUI()
     # comm_arduino = serial.Serial('/dev/ttyACM0', 9600)
 
     
@@ -253,7 +261,6 @@ def main():
         actions = np.array([a1, a2, a3, a4, a5])
 
 
-
         # # option 1: divide by the joints (first 2, second 2, last 2)
         # action_std = np.std(actions, axis=0)
         # uncertainty1 = round((action_std[0] + action_std[1]) * 100, 2)
@@ -269,42 +276,70 @@ def main():
         xyz4, quat4, _ = ur10.forward_kinematics(s_array + a4)
         xyz5, quat5, _ = ur10.forward_kinematics(s_array + a5)
         actions_xyz = np.array([xyz1, xyz2, xyz3, xyz4, xyz5])
-
         action_xyz_std = np.std(actions_xyz, axis=0)
         actions_quat = [quat1, quat2, quat3, quat4, quat5]
-
         action_quat_d = 0.0
         quat_pairs = list(itertools.combinations(actions_quat, 2))
         for item in quat_pairs:
             action_quat_d += Quaternion.absolute_distance(item[0], item[1]) / len(quat_pairs)
+        uncertainty1 = (action_xyz_std[0] + action_xyz_std[1]) / 2.0
+        uncertainty2 = action_xyz_std[2]
+        uncertainty3 = action_quat_d
+        
 
         # hyperparameters
-        hyper_xy = 1.0
-        hyper_z = 1.0
-        hyper_orien = 1.0
+        if not args.feature:
+            hyp_xy = 1.0
+            hyp_z = 0.5
+            hyp_orien = 0.1
+        elif args.feature == 'XY':
+            hyp_xy = 1.0
+            hyp_z = 0.5
+            hyp_orien = 0.1
+        elif args.feature == 'Z':
+            hyp_xy = 0.3
+            hyp_z = 1.0
+            hyp_orien = 0.2
+        elif args.feature == 'ROT':
+            hyp_xy = 1.0
+            hyp_z = 1.0
+            hyp_orien = 0.7
 
-        uncertainty1 = (action_xyz_std[0] + action_xyz_std[1]) / 2.0 * hyper_xy
-        uncertainty2 = action_xyz_std[2] * hyper_z
-        uncertainty3 = action_quat_d * hyper_orien
-       
-        uncertainty1 = round(uncertainty1 * 100, 2)
-        uncertainty2 = round(uncertainty2 * 100, 2)
-        uncertainty3 = round(uncertainty3 * 100, 2)
-        uncertainty = np.array([uncertainty1, uncertainty2, uncertainty3])
+      
+        uncertainty = np.array([uncertainty1 * hyp_xy, uncertainty2 * hyp_z, uncertainty3 * hyp_orien])
+        uncertainty = np.round(uncertainty * 100, 2)
         most_uncertain = np.argmax(uncertainty)
-   
-
+        
         if most_uncertain == 0:
-            uncertain_name = "X-Y"
+            uncertain_name = "XY"
         elif most_uncertain == 1:
-            uncertain_name = "-Z-"
+            uncertain_name = "Z"
         elif most_uncertain == 2:
             uncertain_name = "ROT"
         else:
             uncertain_name = " "    
 
-        comm_arduino=None
-        send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown)
+
+        interface = "GUI"
+        if interface == "GUI":
+            curr_time = time.time()
+            if curr_time - last_time > GUI.update_time:
+                GUI.textbox1.delete(0, END)
+                GUI.textbox1.insert(0, uncertainty[0]*100)
+                GUI.textbox2.delete(0, END)
+                GUI.textbox2.insert(0, uncertainty[1]*100)
+                GUI.textbox3.delete(0, END)
+                GUI.textbox3.insert(0, uncertainty[2]*100)
+                GUI.root.update()
+                last_time = time.time()
+        elif interface == "Haptic":
+            # comm_arduino=None
+            # send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown)
+            pass
+        else:
+            print(uncertain_name, uncertainty[0], uncertainty[1], uncertainty[2])
+
+
 
         rate.sleep()
 
