@@ -5,17 +5,25 @@ import argparse
 
 
 
-
-parser = argparse.ArgumentParser(description='Preparing state-action pairs')
-parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
+parser.add_argument('--who', help='expert vs. user(i)', type=str)
+parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 args = parser.parse_args()
 
-folder = "demos/" + args.set
 
-noise = 0.01        #hyperparameter
+#hyperparameters
+noise = 0.01        
 n_upsamples = 10
 n_lookahead = 1
 
+
+if args.who == "expert":
+    files = ['expert_1.pkl', 'expert_3.pkl', 'expert_2.pkl']
+elif args.who[0:4] == "user":
+    print(args.who[0:4])
+    exit()
+
+folder = "data/demos/" + args.feature
 
 sapairs = []
 for filename in os.listdir(folder):
@@ -36,6 +44,6 @@ for filename in os.listdir(folder):
             a = sp - s
             # pair states, actions, and goal
             sapairs.append(s.tolist() + a.tolist())# + step[1])
-            
-pickle.dump(sapairs, open("data/" + args.set + "/sa_pairs.pkl", "wb"))
+
+pickle.dump(sapairs, open("training/" + args.set + "/sa_pairs.pkl", "wb"))
 print("I have this many state-action pairs: ", len(sapairs))

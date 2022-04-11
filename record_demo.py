@@ -6,10 +6,11 @@ import numpy as np
 import pygame
 from urdf_parser_py.urdf import URDF
 from pykdl_utils.kdl_kinematics import KDLKinematics
-import copy
+# import copy
 import pickle
 import torch
 import argparse
+import os
 from positions import HOME, RETURN, Goals
 
 from std_msgs.msg import Float64MultiArray, String
@@ -38,6 +39,13 @@ from geometry_msgs.msg import(
     TwistStamped,
     Twist
 )
+
+
+parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
+parser.add_argument('--who', help='expert vs. user(i)', type=str)
+parser.add_argument('--feature', help='XY, Z, ROT', type=str)
+parser.add_argument('--trial', help='demonstration index', type=str, default='0')
+args = parser.parse_args()
 
 
 class JoystickControl(object):
@@ -111,12 +119,12 @@ class RecordClient(object):
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
-    parser.add_argument('--trial', type=str, default='0')
-    parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
-    args = parser.parse_args()
+    if args.who == "expert":
+        filename = "data/demos/" + args.feature + "/" + args.who + "_" + args.trial + ".pkl"
+    elif args.who[0:4] == "user":
+        filename = "data/demos/" + args.feature + "/" + args.who + ".pkl"
 
-    filename = "demos/" + args.set + "/trail_" + args.trial + ".pkl"
+
     data = []
     rospy.init_node("recorder")
     rate = rospy.Rate(100)    
@@ -127,11 +135,6 @@ def main():
         pass
 
     rospy.sleep(1)
-
-    # for waypoint in RETURN:
-    #     recorder.send_cmd('movel(' + str(waypoint) + ')')
-    #     rospy.sleep(1)
-
     recorder.send_cmd('movel(' + str(HOME) + ')')
     rospy.sleep(2)
     recorder.actuate_gripper(1, 0.1, 1)
@@ -145,14 +148,9 @@ def main():
     step_time = 0.1
     gripper_open = True
 
-
-    goal = Goals['Goal4']
     while not rospy.is_shutdown():
 
-
         s = list(recorder.joint_states)
-        # print(recorder.forward_kinematics(s))
-        
         
         A, B, X, Y, start = joystick.getInput()
         if X and gripper_open:
@@ -175,7 +173,7 @@ def main():
             segment += 1
             time_last_segment = time.time()
         if record and curr_time - last_time > step_time:
-            data.append([s, goal])
+            data.append(s)
             last_time = curr_time
 
         rate.sleep()

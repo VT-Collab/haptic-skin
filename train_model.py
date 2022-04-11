@@ -71,7 +71,7 @@ def main():
     LR_STEP_SIZE = 1000
     LR_GAMMA = 0.1
 
-    train_data = HumanData("data/"+ args.set + "/sa_pairs.pkl")
+    train_data = HumanData("training/"+ args.set + "/sa_pairs.pkl")
     train_set = DataLoader(dataset=train_data, batch_size=BATCH_SIZE_TRAIN, shuffle=True)
 
     n_models = 5
