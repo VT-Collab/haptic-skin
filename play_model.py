@@ -83,7 +83,7 @@ class JoystickControl(object):
 class Model(object):
     def __init__(self):
         self.model = BC(32)
-        model_dict = torch.load("models/" + args.set + "/MLP_model_1", map_location='cpu')
+        model_dict = torch.load("models/" + args.set + "/MLP_model_3", map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
 
