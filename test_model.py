@@ -1,3 +1,4 @@
+from __future__ import division
 import rospy
 import actionlib
 import sys
@@ -15,7 +16,6 @@ import serial
 from pyquaternion import Quaternion
 import itertools
 from positions import HOME, Goals
-from __future__ import division
 from utils import TrajectoryClient as TR
 import argparse
 
@@ -166,9 +166,28 @@ def joint2pose(joint_states):
         xyz = np.asarray(xyz_lin[-1]).tolist() + np.asarray(xyz_ang).tolist()
         return xyz
 
-def pressure2current(p):
-    # convert pressure [psi] to current [mA]
-    return (8*p/15 + 4)/1000
+def send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown):
+    # normalize and map uncertainty to 0-3 [psi]
+    uncertainty = 3*uncertainty/np.linalg.norm(uncertainty)
+    # pressure2current
+    uncertainty = np.clip(uncertainty, 0.0, 3.0)
+    signal_P = (8*uncertainty/15 + 4)/1000
+
+    if shutdown:
+        signal_P = 0*signal_P
+
+    # # send signal to the arduino ----> ASK!
+    # num = str(signal_P[0])
+    # if shutdown:
+    #     num = str(0.0)
+    # s = num.encode('utf-8')
+    # comm_arduino.write(s)
+
+    # output signal from UR10 controller
+    comm_transducer.analog_io(0, 0, signal_P[1])
+    comm_transducer.analog_io(0, 1, signal_P[2])
+
+
 
 def main():
     parser = argparse.ArgumentParser(description='playing rolled-out policy')
@@ -178,20 +197,22 @@ def main():
     data = []
     rospy.init_node("recorder")
     rate = rospy.Rate(100)
-    # ser = serial.Serial('/dev/ttyACM0', 9600)
+
+
+    ur10 = Robot()
+    comm_transducer = TR()
     recorder = RecordClient()
     joystick = JoystickControl()
+    # comm_arduino = serial.Serial('/dev/ttyACM0', 9600)
 
+    
     model1 = Model("MLP_model_1")
     model2 = Model("MLP_model_2")
     model3 = Model("MLP_model_3")
     model4 = Model("MLP_model_4")
     model5 = Model("MLP_model_5")
-    
-    ur10 = Robot()
-    transducer = TR()
-
     goal = Goals['Goal' + args.goal]
+
     while not recorder.joint_states:
         pass
 
@@ -201,9 +222,8 @@ def main():
     recorder.actuate_gripper(1, 0.1, 1)
     gripper_open = True
     rospy.sleep(0.5)
-    print("[*] Press A to START Recording")
-    print("[*] Press B to STOP Recording")
-    print("[*] Press BACK to STOP Program")
+
+    print("[*] Press B to STOP")
 
     shutdown = False
     while not rospy.is_shutdown():
@@ -259,9 +279,9 @@ def main():
             action_quat_d += Quaternion.absolute_distance(item[0], item[1]) / len(quat_pairs)
 
         # hyperparameters
-        hyper_xy = 0.5
+        hyper_xy = 1.0
         hyper_z = 1.0
-        hyper_orien = 0.1
+        hyper_orien = 1.0
 
         uncertainty1 = (action_xyz_std[0] + action_xyz_std[1]) / 2.0 * hyper_xy
         uncertainty2 = action_xyz_std[2] * hyper_z
@@ -283,26 +303,8 @@ def main():
         else:
             uncertain_name = " "    
 
-        print(uncertain_name, uncertainty1, uncertainty2, uncertainty3)
-
-        uncertainty1 = np.clip(uncertainty1, 0.0, 3.0)
-        uncertainty2 = np.clip(uncertainty2, 0.0, 3.0)
-        uncertainty3 = np.clip(uncertainty3, 0.0, 3.0)
-
-        
-        transducer.analog_io(0, 0, pressure2current(uncertainty1))
-        transducer.analog_io(0, 1, pressure2current(uncertainty1))
-
-        
-
-
-
-        # # send signal to the arduino
-        # num = str(uncertainty)
-        # if shutdown:
-        #     num = str(0.0)
-        # b = num.encode('utf-8')
-        # ser.write(b)
+        comm_arduino=None
+        send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown)
 
         rate.sleep()
 

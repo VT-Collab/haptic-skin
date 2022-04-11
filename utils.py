@@ -268,11 +268,9 @@ class TrajectoryClient(object):
                 "set_analog_out(" + str(pin) + "," + str(normalized_val) + ")\n" + \
                 "end " + "\n"
         n_time = 0
-        print(pin, self.io_states.analog_out_states[pin].state, val)
         while abs(self.io_states.analog_out_states[pin].state - val) > 0.001 and n_time < 10:
             n_time += 1
             self.script_pub.publish(msg)
-        print(n_time, abs(self.io_states.analog_out_states[pin].state - val), pin, self.io_states.analog_out_states[pin].state, val)
 
 
 
