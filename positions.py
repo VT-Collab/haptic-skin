@@ -1,7 +1,7 @@
 import numpy as np
 
 ########## robot home joint positions ##########
-HOME = [-np.pi/2, -1.3, -2.4,-0.97, 1.54, np.pi]
+HOME = [-np.pi/2, -0.95, -2.0,-1.7, 1.54, np.pi]
 
 
 ########## path to return home ##########

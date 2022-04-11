@@ -113,10 +113,10 @@ def main():
 
     parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
     parser.add_argument('--trial', type=str, default='0')
-    parser.add_argument('--goal', type=str, default='0')
+    parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
     args = parser.parse_args()
 
-    filename = "demos/object_" + args.goal + "_" + args.trial + ".pkl"
+    filename = "demos/" + args.set + "/trail_" + args.trial + ".pkl"
     data = []
     rospy.init_node("recorder")
     rate = rospy.Rate(100)    
@@ -142,11 +142,11 @@ def main():
 
     record = False
     segment = 0
-    step_time = 0.05
+    step_time = 0.1
     gripper_open = True
 
 
-    goal = Goals['Goal' + args.goal]
+    goal = Goals['Goal4']
     while not rospy.is_shutdown():
 
 

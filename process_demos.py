@@ -1,9 +1,16 @@
 import pickle
 import numpy as np
 import os, sys
+import argparse
 
 
-folder = "demos"
+
+
+parser = argparse.ArgumentParser(description='Preparing state-action pairs')
+parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+args = parser.parse_args()
+
+folder = "demos/" + args.set
 
 noise = 0.01        #hyperparameter
 n_upsamples = 10
@@ -28,7 +35,7 @@ for filename in os.listdir(folder):
             s = np.copy(s_base) + np.random.normal(0, noise, 6)
             a = sp - s
             # pair states, actions, and goal
-            sapairs.append(s.tolist() + a.tolist() + step[1])
-
-pickle.dump(sapairs, open("data/sa_pairs.pkl", "wb"))
+            sapairs.append(s.tolist() + a.tolist())# + step[1])
+            
+pickle.dump(sapairs, open("data/" + args.set + "/sa_pairs.pkl", "wb"))
 print("I have this many state-action pairs: ", len(sapairs))

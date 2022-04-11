@@ -299,26 +299,26 @@ class interface_GUI(object):
     def __init__(self):
         self.root = Tk()
         self.root.title("Uncertainity Output")
-        self.update_time = 0.5
+        self.update_time = 0.02
         font = "Palatino Linotype"
 
         # X_Y Uncertainty
         myLabel1 = Label(self.root, text = "X-Y", font=(font, 40))
-        myLabel1.grid(row = 0, column = 0, pady = 100, padx = 100)
-        self.textbox1 = Entry(self.root, width = 10, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
+        myLabel1.grid(row = 0, column = 0, pady = 50, padx = 50)
+        self.textbox1 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox1.grid(row = 0, column = 1,  pady = 10, padx = 20)
         self.textbox1.insert(0,0)
         
         # Z Uncertainty
         myLabel2 = Label(self.root, text = "Z", font=("Palatino Linotype", 40))
-        myLabel2.grid(row = 1, column = 0, pady = 100, padx = 100)
-        self.textbox2 = Entry(self.root, width = 10, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
+        myLabel2.grid(row = 1, column = 0, pady = 50, padx = 50)
+        self.textbox2 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox2.grid(row = 1, column = 1,  pady = 10, padx = 20)
         self.textbox2.insert(0,0)
         
         # ROT Uncertainty
         myLabel3 = Label(self.root, text = "ROT", font=("Palatino Linotype", 40))
-        myLabel3.grid(row = 2, column = 0, pady = 100, padx = 100)
-        self.textbox3 = Entry(self.root, width = 10, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
+        myLabel3.grid(row = 2, column = 0, pady = 50, padx = 50)
+        self.textbox3 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox3.grid(row = 2, column = 1,  pady = 10, padx = 20)
         self.textbox3.insert(0,0)

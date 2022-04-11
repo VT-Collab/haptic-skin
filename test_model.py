@@ -50,7 +50,9 @@ from geometry_msgs.msg import(
 )
 
 
-
+parser = argparse.ArgumentParser(description='playing rolled-out policy')
+parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+args = parser.parse_args()
 
 
 class JoystickControl(object):
@@ -79,10 +81,11 @@ class Model(object):
         self.model.load_state_dict(model_dict)
         self.model.eval
 
-    def policy(self, state, goal):
+    def policy(self, state):#, goal):
         s_tensor = torch.FloatTensor(state)
-        goal_tensor = torch.FloatTensor(goal)
-        action = self.model.encoder(torch.cat((s_tensor, goal_tensor))).detach().numpy()
+        # goal_tensor = torch.FloatTensor(goal)
+        action = self.model.encoder(s_tensor).detach().numpy()
+        # action = self.model.encoder(torch.cat((s_tensor, goal_tensor))).detach().numpy()
         return action
 
 
@@ -192,11 +195,6 @@ def send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='playing rolled-out policy')
-    parser.add_argument('--goal', type=str, default=0)
-    parser.add_argument('--feature', type=str, help='rendering uncertainty: XY, Z, ROT', default=None)
-    args = parser.parse_args()
- 
     start_time = time.time()
     last_time = time.time()
     
@@ -214,12 +212,12 @@ def main():
     # comm_arduino = serial.Serial('/dev/ttyACM0', 9600)
 
     
-    model1 = Model("MLP_model_1")
-    model2 = Model("MLP_model_2")
-    model3 = Model("MLP_model_3")
-    model4 = Model("MLP_model_4")
-    model5 = Model("MLP_model_5")
-    goal = Goals['Goal' + args.goal]
+    model1 = Model(args.set + "/" + "MLP_model_1")
+    model2 = Model(args.set + "/" + "MLP_model_2")
+    model3 = Model(args.set + "/" + "MLP_model_3")
+    model4 = Model(args.set + "/" + "MLP_model_4")
+    model5 = Model(args.set + "/" + "MLP_model_5")
+    # goal = Goals['Goal' + args.goal]
 
     while not recorder.joint_states:
         pass
@@ -253,11 +251,11 @@ def main():
         s = list(recorder.joint_states)
 
         actions = []
-        a1 = model1.policy(s, goal)
-        a2 = model2.policy(s, goal)
-        a3 = model3.policy(s, goal)
-        a4 = model4.policy(s, goal)
-        a5 = model5.policy(s, goal)
+        a1 = model1.policy(s)#, goal)
+        a2 = model2.policy(s)#, goal)
+        a3 = model3.policy(s)#, goal)
+        a4 = model4.policy(s)#, goal)
+        a5 = model5.policy(s)#, goal)
         actions = np.array([a1, a2, a3, a4, a5])
 
 
@@ -288,22 +286,22 @@ def main():
         
 
         # hyperparameters
-        if not args.feature:
+        if not args.set:
             hyp_xy = 1.0
             hyp_z = 0.5
             hyp_orien = 0.1
-        elif args.feature == 'XY':
+        elif args.set == 'XY':
             hyp_xy = 1.0
             hyp_z = 0.5
             hyp_orien = 0.1
-        elif args.feature == 'Z':
+        elif args.set == 'Z':
             hyp_xy = 0.3
             hyp_z = 1.0
             hyp_orien = 0.2
-        elif args.feature == 'ROT':
+        elif args.set == 'ROT':
             hyp_xy = 1.0
             hyp_z = 1.0
-            hyp_orien = 0.7
+            hyp_orien = 1.0
 
       
         uncertainty = np.array([uncertainty1 * hyp_xy, uncertainty2 * hyp_z, uncertainty3 * hyp_orien])
@@ -325,11 +323,11 @@ def main():
             curr_time = time.time()
             if curr_time - last_time > GUI.update_time:
                 GUI.textbox1.delete(0, END)
-                GUI.textbox1.insert(0, uncertainty[0]*100)
+                GUI.textbox1.insert(0, round(uncertainty[0]*100,3))
                 GUI.textbox2.delete(0, END)
-                GUI.textbox2.insert(0, uncertainty[1]*100)
+                GUI.textbox2.insert(0, round(uncertainty[1]*100, 3))
                 GUI.textbox3.delete(0, END)
-                GUI.textbox3.insert(0, uncertainty[2]*100)
+                GUI.textbox3.insert(0, round(uncertainty[2]*100, 3))
                 GUI.root.update()
                 last_time = time.time()
         elif interface == "Haptic":

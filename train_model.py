@@ -5,7 +5,12 @@ import torch.optim as optim
 import pickle
 import argparse
 import numpy as np
+import argparse
 
+
+parser = argparse.ArgumentParser(description='Preparing state-action pairs')
+parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+args = parser.parse_args()
 
 class HumanData(Dataset):
 
@@ -23,7 +28,7 @@ class BC(nn.Module):
     def __init__(self, hidden_dim):
         super(BC, self).__init__()
 
-        self.pos_dim = 3
+        self.pos_dim = 0
         self.state_dim = 6        
         self.action_dim = 6
 
@@ -39,10 +44,18 @@ class BC(nn.Module):
         return self.linear3(h2)
 
     def forward(self, x):
+        # print(x)
+        # goal = x[:, -self.pos_dim:]
+        # a_target = x[:, self.state_dim:-self.pos_dim]  
+        # a_predicted = self.encoder(torch.cat((state, goal), 1))
+        # print(state)
+
         state = x[:, :self.state_dim]
-        goal = x[:, -self.pos_dim:]
-        a_target = x[:, self.state_dim:-self.pos_dim]  
-        a_predicted = self.encoder(torch.cat((state, goal), 1))
+        a_target = x[:, 6:12]
+        a_predicted = self.encoder(state)
+        
+        # print(a_target)
+
         loss = self.loss(a_predicted, a_target)
         return loss
 
@@ -53,12 +66,12 @@ class BC(nn.Module):
 def main():
 
     EPOCH = 1000
-    BATCH_SIZE_TRAIN = 500
+    BATCH_SIZE_TRAIN = 200
     LR = 0.001
     LR_STEP_SIZE = 1000
     LR_GAMMA = 0.1
 
-    train_data = HumanData("data/sa_pairs.pkl")
+    train_data = HumanData("data/"+ args.set + "/sa_pairs.pkl")
     train_set = DataLoader(dataset=train_data, batch_size=BATCH_SIZE_TRAIN, shuffle=True)
 
     n_models = 5
@@ -77,7 +90,7 @@ def main():
             scheduler.step()
             if epoch % 100 == 0:
                 print(epoch, loss.item())
-        torch.save(model.state_dict(), "models/MLP_model_" + str(n+1))
+        torch.save(model.state_dict(), "models/" + args.set + "/MLP_model_" + str(n+1))
 
 if __name__ == "__main__":
     main()

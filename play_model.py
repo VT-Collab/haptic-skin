@@ -53,6 +53,11 @@ from geometry_msgs.msg import(
 )
 
 
+parser = argparse.ArgumentParser(description='playing rolled-out policy')
+parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+args = parser.parse_args()
+
+
 ACTION_SCALE = 0.15
 MOVING_AVERAGE = 10
 
@@ -78,14 +83,15 @@ class JoystickControl(object):
 class Model(object):
     def __init__(self):
         self.model = BC(32)
-        model_dict = torch.load("models/MLP_model_5", map_location='cpu')
+        model_dict = torch.load("models/" + args.set + "/MLP_model_1", map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
 
-    def policy(self, state, goal):
+    def policy(self, state):#, goal):
         s_tensor = torch.FloatTensor(state)
-        goal_tensor = torch.FloatTensor(goal)
-        action = self.model.encoder(torch.cat((s_tensor, goal_tensor))).detach().numpy()
+        # goal_tensor = torch.FloatTensor(goal)
+        # action = self.model.encoder(torch.cat((s_tensor, goal_tensor))).detach().numpy()
+        action = self.model.encoder(s_tensor).detach().numpy()
         return action
 
     
@@ -195,10 +201,6 @@ class TrajectoryClient(object):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='playing rolled-out policy')
-    parser.add_argument('--goal', type=str, default=0)
-    args = parser.parse_args()
-
     rospy.init_node("play_MLP")
     mover = TrajectoryClient()
     joystick = JoystickControl()
@@ -222,11 +224,12 @@ def main():
 
 
 
-    goal = Goals['Goal' + args.goal]
+    # goal = Goals['Goal4']
     while not rospy.is_shutdown():
 
         s = list(mover.joint_states)
-        a = model.policy(s, goal) * 100.0
+        # a = model.policy(s, goal) * 100.0
+        a = model.policy(s) * 100.0
        
         if np.linalg.norm(a) > ACTION_SCALE:
             a = a / np.linalg.norm(a) * ACTION_SCALE
