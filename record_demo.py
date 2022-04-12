@@ -17,14 +17,12 @@ parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 parser.add_argument('--trial', help='demonstration index', type=str, default='0')
 args = parser.parse_args()
 
+if args.who == "expert":
+    filename = "data/demos/" + args.feature + "/" + args.who + "_" + args.trial + ".pkl"
+elif args.who[0:4] == "user":
+    filename = "data/demos/" + args.feature + "/" + args.who + ".pkl"
 
 def main():
-
-    if args.who == "expert":
-        filename = "data/demos/" + args.feature + "/" + args.who + "_" + args.trial + ".pkl"
-    elif args.who[0:4] == "user":
-        filename = "data/demos/" + args.feature + "/" + args.who + ".pkl"
-
 
     rospy.init_node("UR10")
     rate = rospy.Rate(100)    
@@ -34,21 +32,23 @@ def main():
     while not UR10.joint_states:
         pass
 
+    # send robot to home 
     rospy.sleep(1)
     go2home(HOME)
     rospy.sleep(2)
 
+    # open gripper
     UR10.actuate_gripper(1, 0.1, 1)
+    gripper_open = True
     rospy.sleep(0.5)    
 
     print("[*] Press A to START Recording")
     print("[*] Press B to STOP Recording")
 
+    data = []
     record = False
     step_time = 0.1
-    gripper_open = True
 
-    data = []
     while not rospy.is_shutdown():
 
         s = list(UR10.joint_states)
@@ -62,6 +62,7 @@ def main():
             gripper_open = True
         if record and B:
             pickle.dump(data, open(filename, "wb"))
+            print("[*] Saved Recording")
             return True
         elif not record and A:
             record = True
