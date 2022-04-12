@@ -10,7 +10,7 @@ import pickle
 import argparse
 # import os
 from positions import HOME
-from utils import JoystickControl
+from utils import JoystickControl, TrajectoryClient, go2home
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -48,53 +48,54 @@ args = parser.parse_args()
 
 
 
-class RecordClient(object):
+# class RecordClient(object):
 
-    def __init__(self):
-        # Subscribers to update joint state
-        self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
-        self.joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",\
-                            "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        self.base_link = "base_link"
-        self.end_link = "wrist_3_link"
-        self.joint_states = None
-        self.robot_urdf = URDF.from_parameter_server()
-        self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
-        self.script_pub = rospy.Publisher('/ur_hardware_interface/script_command', \
-                                            String, queue_size=100)
+#     def __init__(self):
+#         # Subscribers to update joint state
+#         self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
+#         self.joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",\
+#                             "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
+#         self.base_link = "base_link"
+#         self.end_link = "wrist_3_link"
+#         self.joint_states = None
+#         self.robot_urdf = URDF.from_parameter_server()
+#         self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
+#         self.script_pub = rospy.Publisher('/ur_hardware_interface/script_command', \
+#                                             String, queue_size=100)
 
-        # Gripper action and client
-        action_name = rospy.get_param('~action_name', 'command_robotiq_action')
-        self.robotiq_client = actionlib.SimpleActionClient(action_name, \
-                                CommandRobotiqGripperAction)
-        self.robotiq_client.wait_for_server()
-        # Initialize gripper
-        goal = CommandRobotiqGripperGoal()
-        goal.emergency_release = False
-        goal.stop = False
-        goal.position = 1.00
-        goal.speed = 0.1
-        goal.force = 5.0
-        # Sends the goal to the gripper.
-        self.robotiq_client.send_goal(goal)
+#         # Gripper action and client
+#         action_name = rospy.get_param('~action_name', 'command_robotiq_action')
+#         self.robotiq_client = actionlib.SimpleActionClient(action_name, \
+#                                 CommandRobotiqGripperAction)
+#         self.robotiq_client.wait_for_server()
+     
+#         # Initialize gripper
+#         goal = CommandRobotiqGripperGoal()
+#         goal.emergency_release = False
+#         goal.stop = False
+#         goal.position = 1.00
+#         goal.speed = 0.1
+#         goal.force = 5.0
+#         # Sends the goal to the gripper.
+#         self.robotiq_client.send_goal(goal)
 
-    def joint_states_cb(self, msg):
-        try:
-            states = list(msg.position)
-            states[2], states[0] = states[0], states[2]
-            self.joint_states = tuple(states)
-        except:
-            pass
+    # def joint_states_cb(self, msg):
+    #     try:
+    #         states = list(msg.position)
+    #         states[2], states[0] = states[0], states[2]
+    #         self.joint_states = tuple(states)
+    #     except:
+    #         pass
 
-    def send_cmd(self, cmd):
-        self.script_pub.publish(cmd)
+    # def send_cmd(self, cmd):
+    #     self.script_pub.publish(cmd)
 
-    def actuate_gripper(self, pos, speed, force):
-        Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
-        return self.robotiq_client.get_result()
+    # def actuate_gripper(self, pos, speed, force):
+    #     Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
+    #     return self.robotiq_client.get_result()
 
-    def forward_kinematics(self, s, end_link="wrist_3_link", base_link="base_link"):
-        return self.kdl_kin.forward(s)
+    # def forward_kinematics(self, s, end_link="wrist_3_link", base_link="base_link"):
+    #     return self.kdl_kin.forward(s)
 
 
 
@@ -106,18 +107,19 @@ def main():
         filename = "data/demos/" + args.feature + "/" + args.who + ".pkl"
 
 
-    rospy.init_node("recorder")
+    rospy.init_node("UR10")
     rate = rospy.Rate(100)    
-    recorder = RecordClient()
+    UR10 = TrajectoryClient()
     joystick = JoystickControl()
 
-    while not recorder.joint_states:
+    while not UR10.joint_states:
         pass
 
     rospy.sleep(1)
-    recorder.send_cmd('movel(' + str(HOME) + ')')
+    go2home(HOME)
     rospy.sleep(2)
-    recorder.actuate_gripper(1, 0.1, 1)
+
+    UR10.actuate_gripper(1, 0.1, 1)
     gripper_open = True
     rospy.sleep(0.5)    
     print("[*] Press A to START Recording")
@@ -131,17 +133,16 @@ def main():
     data = []
     while not rospy.is_shutdown():
 
-        s = list(recorder.joint_states)
+        s = list(UR10.joint_states)
         
         A, B, X, Y, start = joystick.getInput()
         if X and gripper_open:
-            recorder.actuate_gripper(0.05, 0.1, 1)
+            UR10.actuate_gripper(0.05, 0.1, 1)
             gripper_open = False
         if Y and not gripper_open:
-            recorder.actuate_gripper(1, 0.1, 1)
+            UR10.actuate_gripper(1, 0.1, 1)
             gripper_open = True
         if record and B:
-            print(data)
             pickle.dump(data, open(filename, "wb"))
             return True
         elif not record and A:

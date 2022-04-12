@@ -165,6 +165,10 @@ class TrajectoryClient(object):
 
         res = self.switch_controller_cli.call(req)
 
+    
+    def forward_kinematics(self, s, end_link="wrist_3_link", base_link="base_link"):
+        return self.kdl_kin.forward(s)
+
     def joint2pose(self):
         state = self.kdl_kin.forward(self.joint_states)
         xyz_lin = np.array(state[:,3][:3]).T
@@ -252,7 +256,7 @@ class TrajectoryClient(object):
 
 
 
-def go2home():
+def go2home(HOME):
     mover = TrajectoryClient()
     # Sometime going home fails because joint_states are None
     while True:
