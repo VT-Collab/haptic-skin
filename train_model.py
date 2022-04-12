@@ -8,9 +8,11 @@ import numpy as np
 import argparse
 
 
-parser = argparse.ArgumentParser(description='Preparing state-action pairs')
-parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
+parser.add_argument('--who', help='expert vs. user(i)', type=str)
+parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 args = parser.parse_args()
+
 
 class HumanData(Dataset):
 
@@ -25,17 +27,14 @@ class HumanData(Dataset):
 
 
 class BC(nn.Module):
+
     def __init__(self, hidden_dim):
         super(BC, self).__init__()
-
-        self.pos_dim = 0
         self.state_dim = 6        
         self.action_dim = 6
-
-        self.linear1 = nn.Linear(self.state_dim + self.pos_dim , hidden_dim)
+        self.linear1 = nn.Linear(self.state_dim, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, self.action_dim)
-
         self.loss_func = nn.MSELoss()
 
     def encoder(self, state):
@@ -44,18 +43,9 @@ class BC(nn.Module):
         return self.linear3(h2)
 
     def forward(self, x):
-        # print(x)
-        # goal = x[:, -self.pos_dim:]
-        # a_target = x[:, self.state_dim:-self.pos_dim]  
-        # a_predicted = self.encoder(torch.cat((state, goal), 1))
-        # print(state)
-
         state = x[:, :self.state_dim]
-        a_target = x[:, 6:12]
+        a_target = x[:, self.action_dim:]
         a_predicted = self.encoder(state)
-        
-        # print(a_target)
-
         loss = self.loss(a_predicted, a_target)
         return loss
 
@@ -71,10 +61,15 @@ def main():
     LR_STEP_SIZE = 1000
     LR_GAMMA = 0.1
 
-    train_data = HumanData("training/"+ args.set + "/sa_pairs.pkl")
+    train_data = HumanData("data/training/"+ args.feature + "/" + args.who + "_sa_pairs.pkl")
     train_set = DataLoader(dataset=train_data, batch_size=BATCH_SIZE_TRAIN, shuffle=True)
 
-    n_models = 5
+
+    if args.who == "expert":
+        n_models = 5
+    elif args.who[0:4] == "user":
+        n_models = 1
+
     for n in range(n_models):
         print
         print('[*] Training model ' + str(n+1))
@@ -90,7 +85,7 @@ def main():
             scheduler.step()
             if epoch % 100 == 0:
                 print(epoch, loss.item())
-        torch.save(model.state_dict(), "models/" + args.set + "/MLP_model_" + str(n+1))
+        torch.save(model.state_dict(), "data/models/" + args.feature + "/" + args.who + "_model_" + str(n+1))
 
 if __name__ == "__main__":
     main()

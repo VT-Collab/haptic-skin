@@ -12,7 +12,7 @@ import torch
 from collections import deque
 import argparse
 from train_model import BC
-from positions import HOME, Goals
+from positions import HOME
 import argparse
 
 from std_msgs.msg import Float64MultiArray
@@ -53,10 +53,16 @@ from geometry_msgs.msg import(
 )
 
 
-parser = argparse.ArgumentParser(description='playing rolled-out policy')
-parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
+parser.add_argument('--who', help='expert vs. user(i)', type=str)
+parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 args = parser.parse_args()
 
+
+if args.who == "expert":
+    model_name = "expert_model_5"
+elif args.who[0:4] == "user":
+    model_name = args.who + "_model_1"
 
 ACTION_SCALE = 0.15
 MOVING_AVERAGE = 10
@@ -81,16 +87,14 @@ class JoystickControl(object):
 
 
 class Model(object):
-    def __init__(self):
+    def __init__(self, model_name):
         self.model = BC(32)
-        model_dict = torch.load("models/" + args.set + "/MLP_model_3", map_location='cpu')
+        model_dict = torch.load("data/models/" + args.feature + "/" + model_name, map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
 
-    def policy(self, state):#, goal):
+    def policy(self, state):
         s_tensor = torch.FloatTensor(state)
-        # goal_tensor = torch.FloatTensor(goal)
-        # action = self.model.encoder(torch.cat((s_tensor, goal_tensor))).detach().numpy()
         action = self.model.encoder(s_tensor).detach().numpy()
         return action
 
@@ -204,7 +208,7 @@ def main():
     rospy.init_node("play_MLP")
     mover = TrajectoryClient()
     joystick = JoystickControl()
-    model = Model()
+    model = Model(model_name)
     rate = rospy.Rate(100)
 
     print("[*] Initialized, Moving Home")
@@ -223,12 +227,9 @@ def main():
     n_samples = 100
 
 
-
-    # goal = Goals['Goal4']
     while not rospy.is_shutdown():
 
         s = list(mover.joint_states)
-        # a = model.policy(s, goal) * 100.0
         a = model.policy(s) * 100.0
        
         if np.linalg.norm(a) > ACTION_SCALE:
@@ -243,8 +244,9 @@ def main():
             gripper_open = True
         if A:
             run = True
+            print("[*] Robot is moving")
         if B:
-            print('[*] Stopped!')
+            print('[*] Robot stopped!')
             run = False
             shutdown = True
             time_stop = time.time()
@@ -255,7 +257,6 @@ def main():
             return True
 
         mover.send(a)
-        print(a)
         rate.sleep()
 
 

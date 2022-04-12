@@ -15,7 +15,7 @@ import argparse
 import serial
 from pyquaternion import Quaternion
 import itertools
-from positions import HOME, Goals
+from positions import HOME
 from utils import TrajectoryClient as TR
 import argparse
 from Tkinter import *
@@ -50,8 +50,8 @@ from geometry_msgs.msg import(
 )
 
 
-parser = argparse.ArgumentParser(description='playing rolled-out policy')
-parser.add_argument('--set', help='XY, Z, ROT', type=str, default=None)
+parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
+parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 args = parser.parse_args()
 
 
@@ -77,7 +77,7 @@ class JoystickControl(object):
 class Model(object):
     def __init__(self, name):
         self.model = BC(32)
-        model_dict = torch.load("models/" + name, map_location='cpu')
+        model_dict = torch.load("data/models/" + name, map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
 
@@ -212,11 +212,11 @@ def main():
     # comm_arduino = serial.Serial('/dev/ttyACM0', 9600)
 
     
-    model1 = Model(args.set + "/" + "MLP_model_1")
-    model2 = Model(args.set + "/" + "MLP_model_2")
-    model3 = Model(args.set + "/" + "MLP_model_3")
-    model4 = Model(args.set + "/" + "MLP_model_4")
-    model5 = Model(args.set + "/" + "MLP_model_5")
+    model1 = Model(args.feature + "/" + "expert_model_1")
+    model2 = Model(args.feature + "/" + "expert_model_2")
+    model3 = Model(args.feature + "/" + "expert_model_3")
+    model4 = Model(args.feature + "/" + "expert_model_4")
+    model5 = Model(args.feature + "/" + "expert_model_5")
     # goal = Goals['Goal' + args.goal]
 
     while not recorder.joint_states:
@@ -286,19 +286,19 @@ def main():
         
 
         # hyperparameters
-        if not args.set:
+        if not args.feature:
             hyp_xy = 1.0
             hyp_z = 0.5
             hyp_orien = 0.1
-        elif args.set == 'XY':
+        elif args.feature == 'XY':
             hyp_xy = 1.0
             hyp_z = 0.5
             hyp_orien = 0.1
-        elif args.set == 'Z':
+        elif args.feature == 'Z':
             hyp_xy = 0.3
             hyp_z = 1.0
             hyp_orien = 0.2
-        elif args.set == 'ROT':
+        elif args.feature == 'ROT':
             hyp_xy = 1.0
             hyp_z = 1.0
             hyp_orien = 1.0

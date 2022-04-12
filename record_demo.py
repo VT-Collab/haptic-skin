@@ -6,12 +6,10 @@ import numpy as np
 import pygame
 from urdf_parser_py.urdf import URDF
 from pykdl_utils.kdl_kinematics import KDLKinematics
-# import copy
 import pickle
-import torch
 import argparse
-import os
-from positions import HOME, RETURN, Goals
+# import os
+from positions import HOME
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -125,7 +123,6 @@ def main():
         filename = "data/demos/" + args.feature + "/" + args.who + ".pkl"
 
 
-    data = []
     rospy.init_node("recorder")
     rate = rospy.Rate(100)    
     recorder = RecordClient()
@@ -148,6 +145,7 @@ def main():
     step_time = 0.1
     gripper_open = True
 
+    data = []
     while not rospy.is_shutdown():
 
         s = list(recorder.joint_states)
@@ -160,6 +158,7 @@ def main():
             recorder.actuate_gripper(1, 0.1, 1)
             gripper_open = True
         if record and B:
+            print(data)
             pickle.dump(data, open(filename, "wb"))
             return True
         elif not record and A:
