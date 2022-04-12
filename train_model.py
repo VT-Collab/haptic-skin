@@ -14,6 +14,7 @@ parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 args = parser.parse_args()
 
 
+
 class HumanData(Dataset):
 
     def __init__(self, filename):
@@ -56,19 +57,20 @@ class BC(nn.Module):
 def main():
 
     EPOCH = 1000
-    BATCH_SIZE_TRAIN = 200
     LR = 0.001
     LR_STEP_SIZE = 1000
     LR_GAMMA = 0.1
 
+    if args.who == "expert":
+        n_models = 5
+        BATCH_SIZE_TRAIN = 200
+    elif args.who[0:4] == "user":
+        n_models = 1
+        BATCH_SIZE_TRAIN = 350
+
     train_data = HumanData("data/training/"+ args.feature + "/" + args.who + "_sa_pairs.pkl")
     train_set = DataLoader(dataset=train_data, batch_size=BATCH_SIZE_TRAIN, shuffle=True)
 
-
-    if args.who == "expert":
-        n_models = 5
-    elif args.who[0:4] == "user":
-        n_models = 1
 
     for n in range(n_models):
         print

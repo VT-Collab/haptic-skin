@@ -10,6 +10,7 @@ import pickle
 import argparse
 # import os
 from positions import HOME
+from utils import JoystickControl
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -45,24 +46,6 @@ parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 parser.add_argument('--trial', help='demonstration index', type=str, default='0')
 args = parser.parse_args()
 
-
-class JoystickControl(object):
-
-    def __init__(self):
-        pygame.init()
-        self.gamepad = pygame.joystick.Joystick(0)
-        self.gamepad.init()
-        self.toggle = False
-        self.action = None
-
-    def getInput(self):
-        pygame.event.get()
-        START = self.gamepad.get_button(7)
-        A = self.gamepad.get_button(0)
-        B = self.gamepad.get_button(1)
-        X = self.gamepad.get_button(2)
-        Y = self.gamepad.get_button(3)
-        return A, B, X, Y, START
 
 
 class RecordClient(object):

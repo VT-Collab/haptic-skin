@@ -20,7 +20,7 @@ from utils import TrajectoryClient as TR
 import argparse
 from Tkinter import *
 from utils import interface_GUI
-
+from utils import JoystickControl
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -55,23 +55,23 @@ parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 args = parser.parse_args()
 
 
-class JoystickControl(object):
+# class JoystickControl(object):
 
-    def __init__(self):
-        pygame.init()
-        self.gamepad = pygame.joystick.Joystick(0)
-        self.gamepad.init()
-        self.toggle = False
-        self.action = None
+#     def __init__(self):
+#         pygame.init()
+#         self.gamepad = pygame.joystick.Joystick(0)
+#         self.gamepad.init()
+#         self.toggle = False
+#         self.action = None
 
-    def getInput(self):
-        pygame.event.get()
-        START = self.gamepad.get_button(7)
-        A = self.gamepad.get_button(0)
-        B = self.gamepad.get_button(1)
-        X = self.gamepad.get_button(2)
-        Y = self.gamepad.get_button(3)
-        return A, B, X, Y, START
+#     def getInput(self):
+#         pygame.event.get()
+#         START = self.gamepad.get_button(7)
+#         A = self.gamepad.get_button(0)
+#         B = self.gamepad.get_button(1)
+#         X = self.gamepad.get_button(2)
+#         Y = self.gamepad.get_button(3)
+#         return A, B, X, Y, START
 
 
 class Model(object):
