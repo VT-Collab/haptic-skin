@@ -276,6 +276,31 @@ def go2home(HOME):
     return True    
 
 
+# def go2home(RETURN):
+#     mover = TrajectoryClient()
+#     robot_waypoint = 0
+#     # Sometime going home fails because joint_states are None
+#     while True:
+#         try:
+#             if np.linalg.norm(np.array(RETURN[robot_waypoint]) - np.array(mover.joint_states)) > 0.01:
+#                 robot_waypoint += 1
+#                 if np.linalg.norm(np.array(RETURN[robot_waypoint]) - np.array(mover.joint_states)) < 1.5:
+#                     time = 3.
+#                 else:
+#                     time = 5.
+#                 mover.switch_controller(mode='position')
+#                 mover.send_joint(RETURN[robot_waypoint], time)
+#                 mover.client.wait_for_result()
+#             mover.switch_controller(mode='velocity')
+#         except:
+#             continue
+#         break
+#     return True  
+
+
+
+
+
 class interface_GUI(object):
     def __init__(self):
         self.root = Tk()

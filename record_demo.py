@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pickle
 import argparse
-from positions import HOME
+from positions import HOME, RETURN
 from utils import JoystickControl, TrajectoryClient, go2home
 
 
@@ -30,6 +30,7 @@ def main():
 
     # send robot to home 
     rospy.sleep(1)
+    # go2home(RETURN)
     go2home(HOME)
     rospy.sleep(2)
 
