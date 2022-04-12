@@ -1,8 +1,6 @@
 import pickle
 import numpy as np
-import os, sys
 import argparse
-
 
 
 parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
@@ -22,26 +20,22 @@ folder = "data/demos/" + args.feature
 if args.who == "expert":
     files = ['expert_1.pkl', 'expert_3.pkl', 'expert_2.pkl']
 elif args.who[0:4] == "user":
-    files = ['expert_1.pkl', 'expert_3.pkl', 'expert_2.pkl', args.who + '.pkl', args.who + '.pkl']
+    files = ['expert_1.pkl', 'expert_3.pkl', 'expert_2.pkl', 
+            args.who + '.pkl', args.who + '.pkl']
 
-
-sapairs = []
+sa_pairs = []
 for filename in files:
     traj = pickle.load(open(folder + "/" + filename, 'rb'))
-    print("I am loading file: ", folder + "/" + filename)
-    print("it has this many data points: ", len(traj))
+    print("[*] Loading file: ", folder + "/" + filename)
+    print("[*] Number of data points: ", len(traj))
     traj = np.asarray(traj)
-
-    for idx in range(len(traj) - n_lookahead):
-  
+    for idx in range(len(traj) - n_lookahead):  
         s = traj[idx]
-        s_next = traj[idx + n_lookahead]              
-
+        s_next = traj[idx + n_lookahead]       
         for _ in range(n_upsamples):
             s = np.copy(s) + np.random.normal(0, noise, 6)
             a = s_next - s
-            # pair states and actions
-            sapairs.append(s.tolist() + a.tolist())
+            sa_pairs.append(s.tolist() + a.tolist())
 
-pickle.dump(sapairs, open("data/training/" + args.feature + "/" + args.who + "_sa_pairs.pkl", "wb"))
-print("I have this many state-action pairs: ", len(sapairs))
+pickle.dump(sa_pairs, open("data/training/" + args.feature + "/" + args.who + "_sa_pairs.pkl", "wb"))
+print("I have this many state-action pairs: ", len(sa_pairs))
