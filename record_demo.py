@@ -1,15 +1,11 @@
 import rospy
-import actionlib
-import sys
 import time
 import numpy as np
-import pygame
-from urdf_parser_py.urdf import URDF
-from pykdl_utils.kdl_kinematics import KDLKinematics
 import pickle
 import argparse
 from positions import HOME
 from utils import JoystickControl, TrajectoryClient, go2home
+
 
 parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
 parser.add_argument('--who', help='expert vs. user(i)', type=str)
@@ -50,9 +46,9 @@ def main():
     step_time = 0.1
 
     while not rospy.is_shutdown():
-
+        # read robot states
         s = list(UR10.joint_states)
-        
+        # joystick commands
         A, B, X, Y, start = joystick.getInput()
         if X and gripper_open:
             UR10.actuate_gripper(0.05, 0.1, 1)
