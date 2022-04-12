@@ -71,9 +71,6 @@ def main():
             time_last_segment = time.time()
             print("[*] Recording...")
         curr_time = time.time()
-        if start and record and curr_time - time_last_segment > 0.5:
-            segment += 1
-            time_last_segment = time.time()
         if record and curr_time - last_time > step_time:
             data.append(s)
             last_time = curr_time
