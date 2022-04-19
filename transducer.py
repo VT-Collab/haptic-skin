@@ -53,28 +53,15 @@ def send_arduino(user_input):
 	string = '<' + str(user_input) + '>'
 	comm_arduino.write(string)
 
-def send_pressures(user_input):
-	p1 = user_input[0]
-	p2 = user_input[1]
-	p3 = user_input[2]
-	if ((p1 >= 0.) and(p2 >= 0.) and(p3 >= 0.) and(p1 <= 10.) and(p2 <= 10.) and(p3 <= 10.)):
-		send_arduino(p1)
-		state1 = p2/30.0
-		state2 = p3/30.0
-		analog_IO(3, 0, state1)
-		analog_IO(3, 1, state2)
-
-
-
 
 def main():
 	rospy.init_node("pressure_calibration")
 
 	while not rospy.is_shutdown():
 		user_input = input("Pressure: ")
+        
 		send_arduino(user_input)
 
-		# send_send_arduino(user_input)
 
 		analog_IO(3, 1, user_input/30.0)
 		analog_IO(3, 0, user_input/30.0)

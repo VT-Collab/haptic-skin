@@ -172,8 +172,6 @@ def joint2pose(joint_states):
 
 
 
-
-
 def main():
     start_time = time.time()
     last_time = time.time()
@@ -186,7 +184,6 @@ def main():
 
     ur10 = Robot()
     recorder = RecordClient()
-
     joystick = JoystickControl()
     GUI = interface_GUI()
     comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
@@ -231,6 +228,7 @@ def main():
             return True
 
         s = list(recorder.joint_states)
+        cur_xyz, _, _ = ur10.forward_kinematics(s)
 
         actions = []
         a1 = model1.policy(s)
@@ -241,14 +239,8 @@ def main():
         actions = np.array([a1, a2, a3, a4, a5])
 
 
-        # # option 1: divide by the joints (first 2, second 2, last 2)
-        # action_std = np.std(actions, axis=0)
-        # uncertainty1 = round((action_std[0] + action_std[1]) * 100, 2)
-        # uncertainty2 = round((action_std[2] + action_std[3]) * 100, 2)
-        # uncertainty3 = round((action_std[4] + action_std[5]) * 100, 2)
-        # uncertainty = np.array([uncertainty1, uncertainty2, uncertainty3])
-
-        # option 2: get forward kinematics, then do xy, z, roll-pitch-yaw
+  
+        # forward kinematics, then do xy, z, roll-pitch-yaw
         s_array = np.array(s)
         xyz1, quat1, _ = ur10.forward_kinematics(s_array + a1)
         xyz2, quat2, _ = ur10.forward_kinematics(s_array + a2)
@@ -285,7 +277,6 @@ def main():
             hyp_z = 1.0
             hyp_orien = 1.0
 
-      
         uncertainty = np.array([uncertainty1 * hyp_xy, uncertainty2 * hyp_z, uncertainty3 * hyp_orien])
         most_uncertain = np.argmax(uncertainty)
         
@@ -298,15 +289,20 @@ def main():
         else:
             uncertain_name = " "    
 
+    
         # normalize and map uncertainty to 0-3 [psi]
-        signal_P = np.round(3*uncertainty/np.linalg.norm(uncertainty), 2)
+        if cur_xyz[1] < 0.5:
+            signal_P = np.array([1.5, 1.5, 1.5])
+        else:
+            print("--here", cur_xyz[1])
+            signal_P = np.round(3*uncertainty/np.linalg.norm(uncertainty), 2)
 
         if shutdown:
             print("[*] Shutting down...")
             signal_P = 0*signal_P
-        else:
-            # print(uncertain_name, uncertainty[0], uncertainty[1], uncertainty[2])
-            print(uncertain_name, signal_P[0], signal_P[1], signal_P[2])
+        # else:
+        # #     # print(uncertain_name, uncertainty[0], uncertainty[1], uncertainty[2])
+        #     print(uncertain_name, signal_P[0], signal_P[1], signal_P[2])
 
 
         # # send signal to UR10
@@ -314,12 +310,7 @@ def main():
         analog_IO(3, 1, signal_P[1]/30.0)    # Z
 
         # send signal to Arduino       
-
-        # string = str(signal_P[2])
-        # print(string)
-
-        string = '<' + str(signal_P[2]) + '>'
-        comm_arduino.write(string)
+        comm_arduino.write('<' + str(signal_P[2]) + '>')
         rospy.sleep(0.01)
 
 

@@ -21,7 +21,7 @@ if args.who == "expert":
     files = ['expert_1.pkl', 'expert_3.pkl', 'expert_2.pkl']
 elif args.who[0:4] == "user":
     files = ['expert_1.pkl', 'expert_3.pkl', 'expert_2.pkl', 
-            args.who + '.pkl', args.who + '.pkl']
+            args.who + '.pkl', args.who + '.pkl', args.who + '.pkl']
 
 sa_pairs = []
 for filename in files:

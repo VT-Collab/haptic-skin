@@ -66,7 +66,7 @@ def main():
         BATCH_SIZE_TRAIN = 200
     elif args.who[0:4] == "user":
         n_models = 1
-        BATCH_SIZE_TRAIN = 350
+        BATCH_SIZE_TRAIN = 500
 
     train_data = HumanData("data/training/"+ args.feature + "/" + args.who + "_sa_pairs.pkl")
     train_set = DataLoader(dataset=train_data, batch_size=BATCH_SIZE_TRAIN, shuffle=True)
