@@ -1,4 +1,3 @@
-from __future__ import division
 import rospy
 import actionlib
 import sys
@@ -9,7 +8,7 @@ from ur_msgs.srv import SetIO
 import copy
 import pickle
 import argparse
-from utils import TrajectoryClient as TC
+
 from std_msgs.msg import Float64MultiArray, String
 
 from robotiq_2f_gripper_msgs.msg import (
@@ -37,27 +36,49 @@ from geometry_msgs.msg import(
     Twist
 )
 
-# ser = serial.Serial('/dev/ttyACM0', 9600)
+comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
+
+
+def analog_IO(fun, pin, state):
+    rospy.wait_for_service('/ur_hardware_interface/set_io')
+    try:
+        set_io = rospy.ServiceProxy('/ur_hardware_interface/set_io', SetIO)
+        set_io(fun = fun,pin = pin,state = state)
+        print("Sending analog "+ str(pin)+ " pressure...")
+
+    except rospy.ServiceException, e:
+        print "Unable to send pressure command: %s"%e
+
+def send_arduino(user_input):
+	string = '<' + str(user_input) + '>'
+	comm_arduino.write(string)
+
+def send_pressures(user_input):
+	p1 = user_input[0]
+	p2 = user_input[1]
+	p3 = user_input[2]
+	if ((p1 >= 0.) and(p2 >= 0.) and(p3 >= 0.) and(p1 <= 10.) and(p2 <= 10.) and(p3 <= 10.)):
+		send_arduino(p1)
+		state1 = p2/30.0
+		state2 = p3/30.0
+		analog_IO(3, 0, state1)
+		analog_IO(3, 1, state2)
+
+
 
 
 def main():
 	rospy.init_node("pressure_calibration")
-	mover = TC()
-	rate = rospy.Rate(100)
-
 
 	while not rospy.is_shutdown():
-		
-		P = input("Pressures: ")
+		user_input = input("Pressure: ")
+		send_arduino(user_input)
 
-		signal_P1 = (8*P/15 + 4)/1000
-		signal_P2 = (8*P/15 + 4)/1000
+		# send_send_arduino(user_input)
 
-		# print(signal_P1, signal_P2)
-		
-		mover.analog_io(0, 0, signal_P1)
-		mover.analog_io(0, 1, signal_P2)
-		rate.sleep()
+		analog_IO(3, 1, user_input/30.0)
+		analog_IO(3, 0, user_input/30.0)
+
 
 
 if __name__ == "__main__":

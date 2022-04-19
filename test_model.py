@@ -21,6 +21,7 @@ import argparse
 from Tkinter import *
 from utils import interface_GUI
 from utils import JoystickControl
+from ur_msgs.srv import SetIO
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -53,6 +54,17 @@ from geometry_msgs.msg import(
 parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
 parser.add_argument('--feature', help='XY, Z, ROT', type=str)
 args = parser.parse_args()
+
+
+def analog_IO(fun, pin, state):
+    rospy.wait_for_service('/ur_hardware_interface/set_io')
+    try:
+        set_io = rospy.ServiceProxy('/ur_hardware_interface/set_io', SetIO)
+        set_io(fun = fun,pin = pin,state = state)
+        # print("Sending analog "+ str(pin)+ " pressure...")
+    except rospy.ServiceException, e:
+        print "Unable to send pressure command: %s"%e
+
 
 
 class Model(object):
@@ -110,6 +122,8 @@ class RecordClient(object):
         self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
         self.script_pub = rospy.Publisher('/ur_hardware_interface/script_command', \
                                             String, queue_size=100)
+        
+
         # Gripper action and client
         action_name = rospy.get_param('~action_name', 'command_robotiq_action')
         self.robotiq_client = actionlib.SimpleActionClient(action_name, \
@@ -125,6 +139,8 @@ class RecordClient(object):
         # Sends the goal to the gripper.
         self.robotiq_client.send_goal(goal)
 
+    
+   
     def joint_states_cb(self, msg):
         try:
             states = list(msg.position)
@@ -153,26 +169,9 @@ def joint2pose(joint_states):
         xyz = np.asarray(xyz_lin[-1]).tolist() + np.asarray(xyz_ang).tolist()
         return xyz
 
-def send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown):
-    # normalize and map uncertainty to 0-3 [psi]
-    uncertainty = 3*uncertainty/np.linalg.norm(uncertainty)
-    # pressure2current
-    uncertainty = np.clip(uncertainty, 0.0, 3.0)
-    signal_P = (8*uncertainty/15 + 4)/1000
 
-    if shutdown:
-        signal_P = 0*signal_P
 
-    # # send signal to the arduino ----> ASK!
-    # num = str(signal_P[0])
-    # if shutdown:
-    #     num = str(0.0)
-    # s = num.encode('utf-8')
-    # comm_arduino.write(s)
 
-    # output signal from UR10 controller
-    comm_transducer.analog_io(0, 0, signal_P[1])
-    comm_transducer.analog_io(0, 1, signal_P[2])
 
 
 def main():
@@ -186,11 +185,11 @@ def main():
 
 
     ur10 = Robot()
-    comm_transducer = TR()
     recorder = RecordClient()
+
     joystick = JoystickControl()
     GUI = interface_GUI()
-    # comm_arduino = serial.Serial('/dev/ttyACM0', 9600)
+    comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
 
     
     model1 = Model(args.feature + "/" + "expert_model_1")
@@ -198,7 +197,7 @@ def main():
     model3 = Model(args.feature + "/" + "expert_model_3")
     model4 = Model(args.feature + "/" + "expert_model_4")
     model5 = Model(args.feature + "/" + "expert_model_5")
-    # goal = Goals['Goal' + args.goal]
+
 
     while not recorder.joint_states:
         pass
@@ -223,8 +222,10 @@ def main():
             recorder.actuate_gripper(1, 0.1, 1)
             gripper_open = True
         if B:
+            print("----pressed B")
             shutdown = True
             time_stop = time.time()
+      
         if shutdown and time.time() - time_stop > 2.0:
             recorder.actuate_gripper(1, 0.1, 1)
             return True
@@ -232,11 +233,11 @@ def main():
         s = list(recorder.joint_states)
 
         actions = []
-        a1 = model1.policy(s)#, goal)
-        a2 = model2.policy(s)#, goal)
-        a3 = model3.policy(s)#, goal)
-        a4 = model4.policy(s)#, goal)
-        a5 = model5.policy(s)#, goal)
+        a1 = model1.policy(s)
+        a2 = model2.policy(s)
+        a3 = model3.policy(s)
+        a4 = model4.policy(s)
+        a5 = model5.policy(s)
         actions = np.array([a1, a2, a3, a4, a5])
 
 
@@ -272,12 +273,12 @@ def main():
             hyp_z = 0.5
             hyp_orien = 0.1
         elif args.feature == 'XY':
-            hyp_xy = 1.0
-            hyp_z = 0.5
+            hyp_xy = 1.5
+            hyp_z = 0.7
             hyp_orien = 0.1
         elif args.feature == 'Z':
-            hyp_xy = 0.3
-            hyp_z = 1.0
+            hyp_xy = 1.0
+            hyp_z = 1.5
             hyp_orien = 0.2
         elif args.feature == 'ROT':
             hyp_xy = 1.0
@@ -286,7 +287,6 @@ def main():
 
       
         uncertainty = np.array([uncertainty1 * hyp_xy, uncertainty2 * hyp_z, uncertainty3 * hyp_orien])
-        uncertainty = np.round(uncertainty * 100, 2)
         most_uncertain = np.argmax(uncertainty)
         
         if most_uncertain == 0:
@@ -298,29 +298,34 @@ def main():
         else:
             uncertain_name = " "    
 
+        # normalize and map uncertainty to 0-3 [psi]
+        signal_P = np.round(3*uncertainty/np.linalg.norm(uncertainty), 2)
 
-        interface = "GUI"
-        if interface == "GUI":
-            curr_time = time.time()
-            if curr_time - last_time > GUI.update_time:
-                GUI.textbox1.delete(0, END)
-                GUI.textbox1.insert(0, round(uncertainty[0]*100,3))
-                GUI.textbox2.delete(0, END)
-                GUI.textbox2.insert(0, round(uncertainty[1]*100, 3))
-                GUI.textbox3.delete(0, END)
-                GUI.textbox3.insert(0, round(uncertainty[2]*100, 3))
-                GUI.root.update()
-                last_time = time.time()
-        elif interface == "Haptic":
-            # comm_arduino=None
-            # send_pressure(uncertainty, comm_transducer, comm_arduino, shutdown)
-            pass
+        if shutdown:
+            print("[*] Shutting down...")
+            signal_P = 0*signal_P
         else:
-            print(uncertain_name, uncertainty[0], uncertainty[1], uncertainty[2])
+            # print(uncertain_name, uncertainty[0], uncertainty[1], uncertainty[2])
+            print(uncertain_name, signal_P[0], signal_P[1], signal_P[2])
 
+
+        # # send signal to UR10
+        analog_IO(3, 0, signal_P[0]/30.0)    # XY
+        analog_IO(3, 1, signal_P[1]/30.0)    # Z
+
+        # send signal to Arduino       
+
+        # string = str(signal_P[2])
+        # print(string)
+
+        string = '<' + str(signal_P[2]) + '>'
+        comm_arduino.write(string)
+        rospy.sleep(0.01)
 
 
         rate.sleep()
+
+
 
 
 if __name__ == "__main__":

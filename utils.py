@@ -244,7 +244,6 @@ class TrajectoryClient(object):
         # current [V]
         elif d_type == 1:
             normalized_val = val / 10
-
         msg = "sec MyProgram():" + "\n" + \
                 "set_analog_outputdomain(" + str(pin) + "," + str(d_type) + ")\n" + \
                 "set_analog_out(" + str(pin) + "," + str(normalized_val) + ")\n" + \

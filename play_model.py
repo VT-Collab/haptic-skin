@@ -61,9 +61,9 @@ args = parser.parse_args()
 
 
 if args.who == "expert":
-    model_name = "expert_model_5"
+    model_name = "expert_model_3"
 elif args.who[0:4] == "user":
-    model_name = args.who + "_model_1"
+    model_name = args.who + "_model_5"
 
 ACTION_SCALE = 0.15
 MOVING_AVERAGE = 10
