@@ -123,7 +123,7 @@ class TrajectoryClient(object):
         goal.speed = 0.1
         goal.force = 5.0
         # Sends the goal to the gripper.
-        self.robotiq_client.send_goal(goal)
+        # self.robotiq_client.send_goal(goal)
 
         # store previous joint vels for moving avg
         self.qdots = deque(maxlen=MOVING_AVERAGE)

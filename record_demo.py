@@ -35,8 +35,8 @@ def main():
     rospy.sleep(2)
 
     # open gripper
-    UR10.actuate_gripper(1, 0.1, 1)
-    gripper_open = True
+    # UR10.actuate_gripper(1, 0.1, 1)
+    gripper_open = False
     rospy.sleep(0.5)    
 
     print("[*] Press A to START Recording")

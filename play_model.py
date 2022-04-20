@@ -124,7 +124,7 @@ class TrajectoryClient(object):
         goal.force = 5.0
 
         # Sends the goal to the gripper.
-        self.robotiq_client.send_goal(goal)
+        # self.robotiq_client.send_goal(goal)
 
         # store previous joint vels for moving avg
         self.qdots = deque(maxlen=MOVING_AVERAGE)
@@ -201,9 +201,9 @@ def main():
     mover.switch_controller(mode='velocity')
     print("[*] Ready for velocity commands")
 
-    mover.actuate_gripper(1, 0.1, 1)
-    gripper_open = True
-    rospy.sleep(0.5)
+    # mover.actuate_gripper(1, 0.1, 1)
+    gripper_open = False
+    # rospy.sleep(0.5)
 
     run = False
     shutdown = False

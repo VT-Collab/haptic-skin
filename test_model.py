@@ -137,7 +137,7 @@ class RecordClient(object):
         goal.speed = 0.1
         goal.force = 5.0
         # Sends the goal to the gripper.
-        self.robotiq_client.send_goal(goal)
+        # self.robotiq_client.send_goal(goal)
 
     
    
@@ -202,9 +202,9 @@ def main():
     rospy.sleep(1)
     recorder.send_cmd('movel(' + str(HOME) + ')')
     rospy.sleep(2)
-    recorder.actuate_gripper(1, 0.1, 1)
-    gripper_open = True
-    rospy.sleep(0.5)
+    # recorder.actuate_gripper(1, 0.1, 1)
+    gripper_open = False
+    # rospy.sleep(0.5)
 
     print("[*] Press B to STOP")
 
@@ -224,7 +224,7 @@ def main():
             time_stop = time.time()
       
         if shutdown and time.time() - time_stop > 2.0:
-            recorder.actuate_gripper(1, 0.1, 1)
+            # recorder.actuate_gripper(1, 0.1, 1)
             return True
 
         s = list(recorder.joint_states)
