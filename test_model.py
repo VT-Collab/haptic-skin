@@ -291,8 +291,8 @@ def main():
 
     
         # normalize and map uncertainty to 0-3 [psi]
-        if cur_xyz[1] < 0.5:
-            signal_P = np.array([1.5, 1.5, 1.5])
+        if cur_xyz[1] < 0.55:
+            signal_P = np.array([0.9, 0.9, 0.9])
         else:
             print("--here", cur_xyz[1])
             signal_P = np.round(3*uncertainty/np.linalg.norm(uncertainty), 2)
