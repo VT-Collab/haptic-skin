@@ -202,7 +202,7 @@ def main():
     print("[*] Ready for velocity commands")
 
     # mover.actuate_gripper(1, 0.1, 1)
-    gripper_open = False
+    gripper_open = True
     # rospy.sleep(0.5)
 
     run = False

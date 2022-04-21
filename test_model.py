@@ -203,7 +203,7 @@ def main():
     recorder.send_cmd('movel(' + str(HOME) + ')')
     rospy.sleep(2)
     # recorder.actuate_gripper(1, 0.1, 1)
-    gripper_open = False
+    gripper_open = True
     # rospy.sleep(0.5)
 
     print("[*] Press B to STOP")
