@@ -63,8 +63,8 @@ def main():
 		# send_arduino(user_input)
 
 
-		# analog_IO(3, 1, user_input/30.0)
-		analog_IO(3, 0, user_input/30.0)
+		analog_IO(3, 1, user_input/30.0)
+		# analog_IO(3, 0, user_input/30.0)
 
 
 
