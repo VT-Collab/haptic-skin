@@ -60,11 +60,11 @@ def main():
 	while not rospy.is_shutdown():
 		user_input = input("Pressure: ")
         
-		# send_arduino(user_input)
+		send_arduino(user_input)
 # 
 
 		analog_IO(3, 1, user_input/30.0)
-		# analog_IO(3, 0, user_input/30.0)
+		analog_IO(3, 0, user_input/30.0)
 
 
 

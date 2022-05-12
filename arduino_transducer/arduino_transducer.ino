@@ -1,7 +1,8 @@
 #include <Adafruit_MCP4725.h>
 #include <Wire.h>
 #include <Adafruit_BusIO_Register.h>
-Adafruit_MCP4725 dac;
+Adafruit_MCP4725 dac1;
+Adafruit_MCP4725 dac2;
 
 float P;
 float V;
@@ -20,7 +21,8 @@ boolean newData = false;
 void setup() {
     Serial.begin(9600);
     Serial.setTimeout(2);
-    dac.begin(0x62);
+    dac1.begin(0x62);
+    dac2.begin(0x63);
 }
 
 
@@ -37,8 +39,10 @@ void loop() {
       V = (I-4.0)/3.2;    
           
       temp_dac_input = V*4095.0/5.0;        
-      dac_in = (int)temp_dac_input;      
-      dac.setVoltage(dac_in, false);     
+      dac_in = (int)temp_dac_input;
+            
+      dac1.setVoltage(dac_in, false);
+      dac2.setVoltage(dac_in, false);     
     } 
   }
 }
