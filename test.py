@@ -7,7 +7,7 @@ import pickle
 import argparse
 
 
-comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
+comm_arduino = serial.Serial('/dev/ttyACM1', baudrate=9600)
 
 
 def send_arduino(user_input):
