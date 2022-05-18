@@ -1,17 +1,14 @@
 import numpy as np
-import cv2
-from imutils.video import VideoStream
 import time
 import pickle
 import socket
 import sys
-from scipy.interpolate import interp1d
+# from scipy.interpolate import interp1d
 import pygame
-import torch
+# import torch
 import copy
-from torch.optim import Adam
-from torch.nn.utils.convert_parameters import parameters_to_vector
-from scipy.optimize import LinearConstraint, NonlinearConstraint, minimize
+# from torch.optim import Adam
+# from torch.nn.utils.convert_parameters import parameters_to_vector
 
 
 ########## robot home joint positions ##########
@@ -71,6 +68,7 @@ class JoystickControl(object):
 		return A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed
 
 
+########## Panda ##########
 class TrajectoryClient(object):
 
 	def __init__(self):
@@ -84,6 +82,18 @@ class TrajectoryClient(object):
 		conn, addr = s.accept()
 		return conn
 
+    def connect2gripper(PORT):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('172.16.0.3', PORT))
+        s.listen(10)
+        conn, addr = s.accept()
+        return conn
+
+    def send2gripper(self, conn):
+        send_msg = "o"
+        conn.send(send_msg.encode())
+
 	def send2robot(self, conn, qdot, mode, traj_name=None, limit=0.5):
 		if traj_name is not None:
 			if traj_name[0] == 'q':
@@ -94,10 +104,6 @@ class TrajectoryClient(object):
 			qdot *= limit/scale
 		send_msg = np.array2string(qdot, precision=5, separator=',',suppress_small=True)[1:-1]
 		send_msg = "s," + send_msg + "," + mode + ","
-		conn.send(send_msg.encode())
-
-	def send2gripper(self, conn):
-		send_msg = "o"
 		conn.send(send_msg.encode())
 
 	def listen2robot(self, conn):

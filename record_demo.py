@@ -17,17 +17,20 @@ if args.who == "expert":
 elif args.who[0:4] == "user":
     filename = "data/demos/" + args.feature + "/" + args.who + ".pkl"
 
-
-UR10 = TrajectoryClient()
+# instantiate the robot and joystick
+Panda = TrajectoryClient()
 joystick = JoystickControl()
 
+
+# establish socket connection with panda
+print('[*] Connecting to Panda...')
+PORT_robot = 8080
+conn = Panda.connect2robot(PORT_robot)
+
 # send robot to home
-go2home(HOME)
+panda.go2home(HOME)
 time.sleep(3)
 exit()
-
-# open gripper
-time.sleep(3)
 
 
 print("[*] Press A to START Recording")
@@ -65,7 +68,7 @@ while not True:
         print("[*] Recording...")
 
     curr_time = time.time()
-    
+
     if record and curr_time - last_time > step_time:
         data.append(s)
         last_time = curr_time
