@@ -87,7 +87,6 @@ class TrajectoryClient(object):
 	def send2robot(self, conn, qdot, mode, traj_name=None, limit=0.5):
 		if traj_name is not None:
 			if traj_name[0] == 'q':
-				# print("limit increased")
 				limit = 1.0
 		qdot = np.asarray(qdot)
 		scale = np.linalg.norm(qdot)
@@ -105,6 +104,7 @@ class TrajectoryClient(object):
 		state_length = 7 + 7 + 7 + 42
 		message = str(conn.recv(2048))[2:-2]
 		state_str = list(message.split(","))
+
 		for idx in range(len(state_str)):
 			if state_str[idx] == "s":
 				state_str = state_str[idx+1:idx+1+state_length]
@@ -113,8 +113,10 @@ class TrajectoryClient(object):
 			state_vector = [float(item) for item in state_str]
 		except ValueError:
 			return None
+
 		if len(state_vector) is not state_length:
 			return None
+
 		state_vector = np.asarray(state_vector)
 		state = {}
 		state["q"] = state_vector[0:7]
@@ -123,7 +125,7 @@ class TrajectoryClient(object):
 		state["J"] = state_vector[21:].reshape((7,6)).T
 
 		# get cartesian pose
-		xyz_lin, R = joint2pose(state_vector[0:7])
+		xyz_lin, R = self.joint2pose(state_vector[0:7])
 		beta = -np.arcsin(R[2,0])
 		alpha = np.arctan2(R[2,1]/np.cos(beta),R[2,2]/np.cos(beta))
 		gamma = np.arctan2(R[1,0]/np.cos(beta),R[0,0]/np.cos(beta))
@@ -134,7 +136,7 @@ class TrajectoryClient(object):
 
 	def readState(self, conn):
 		while True:
-			state = listen2robot(conn)
+			state = self.listen2robot(conn)
 			if state is not None:
 				break
 		return state
@@ -212,287 +214,6 @@ class TrajectoryClient(object):
 			theta = theta
 		return theta
 
-
-"""Play the trajectory on the robot for Soweing Queries/ Provide corrections"""
-def play_traj(conn, args, traj_name, algo, iter_count=None):
-	total_time = 45.0
-
-	traj = pickle.load(open(traj_name, "rb" ))
-	if args.task == 'cup':
-		traj[:, 0] = np.clip(traj[:, 0], 0.35, 0.71)
-		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
-		traj[:, 2] = np.clip(traj[:, 2], 0.25, 0.6)
-	else:
-		traj[:, 0] = np.clip(traj[:, 0], 0.2, 0.71)
-		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
-		traj[:, 2] = np.clip(traj[:, 2], 0.1, 0.6)
-	traj = Trajectory(traj[:, :6], total_time)
-	# traj[:, 2] = np.clip(traj[:, 2], 0.1, 0.6)
-
-	print('[*] Connecting to low-level controller...')
-	print("RETURNING HOME")
-	interface = Joystick()
-	go2home(conn)
-	print("PRESS START WHEN READY")
-
-	curr_t = 0.0
-	start_t = None
-	play_traj = False
-	dropped = False
-	state = readState(conn)
-	corrections = []
-	C = []
-	record = False
-	steptime = 0.1
-
-	scale = 1.0
-	mode = "v"
-	while True:
-
-		state = readState(conn)
-		A, B, stop, start = interface.input()
-
-		if start and not play_traj:
-			# go2home(conn)
-			play_traj = True
-			start_t = time.time()
-
-		if stop and record:
-			record = False
-			print("Are you satisfied with the demonstration?")
-			print("Enter [yes] to proceed any ANY KEY to scrap it")
-			ans = input()
-			if ans == 'yes':
-				for idx in range (len(corrections)):
-					corrections[idx] = corrections[idx] + corrections[-1]
-				C.append(corrections)
-
-			print("[*] I recorded this many datapoints: ", len(corrections))
-			print("Please Release the E-Stop")
-			corrections = []
-			time.sleep(5)
-
-			if algo == 'ours':
-				go2home(conn, stop_point)
-			else:
-				go2home(conn)
-
-			print("Do you wish to provide another correction?")
-			ans = input()
-			if ans == 'y':
-				record = True
-			else:
-				if iter_count is None:
-					filename = "corrections/" + algo + "/run_" + args.run_name + "/correction.pkl"
-				else:
-					filename = "corrections/" + algo + "/run_" + args.run_name + "/corr_" + str(iter_count) + ".pkl"
-				print("I have this many corrections:", len(C))
-				if algo == 'ours':
-					pickle.dump(C[0], open(filename, 'wb'))
-				else:
-					pickle.dump(C, open(filename, 'wb'))
-				break
-
-
-		# if stop and not record:
-		# 	if iter_count is None:
-		# 		filename = "corrections/" + algo + "/run_" + args.run_name + "/correction.pkl"
-		# 	else:
-		# 		filename = "corrections/" + algo + "/run_" + args.run_name + "/corr_" + str(iter_count) + ".pkl"
-		# 	print("I have this many corrections:", len(C))
-		# 	pickle.dump(C, open(filename, 'wb'))
-		# 	break
-
-
-		if A:
-			scale = 0.0
-			mode = "k"
-			print("Changing to Kinesthetic Control Mode")
-			print("please press E-STOP")
-			print("Do you wish to provide a Correction?")
-			stop_point = state['q']
-			if algo == 'ours':
-				go2home(conn, stop_point)
-			else:
-				go2home(conn)
-			line = input()
-			if line == 'y':
-				record = True
-				start_time = time.time()
-				print("Recording the correction")
-			else:
-				break
-
-		elif B:
-			mode = "v"
-			scale = 1.0
-			print("Changing to Veclocity Control Mode")
-
-		if play_traj:
-
-
-			curr_t = time.time() - start_t
-			x_des = traj.get(curr_t)
-			x_curr = state['x']
-
-			# x_des[0] = np.clip(x_des[0], 0.0, 0.76)
-			# x_des[1] = np.clip(x_des[0], -0.55, 0.65)
-			# x_des[2] = np.clip(x_des[0], 0.08, 0.7)
-
-			# if np.linalg.norm(x_des[:3])>0.76:
-			# 	x_des[2] = x_curr[2]
-
-
-
-			x_des[3] = wrap_angles(x_des[3])
-			x_des[4] = wrap_angles(x_des[4])
-			x_des[5] = wrap_angles(x_des[5])
-			xdot = 1*scale * (x_des - x_curr)
-			xdot[3] = wrap_angles(xdot[3])
-			xdot[4] = wrap_angles(xdot[4])
-			xdot[5] = wrap_angles(xdot[5])
-			# print(x_des)
-			if x_curr[0] <= 0.15 or x_curr[0] >= 0.7:
-				xdot[0] = 0
-			if x_curr[1] <= -0.4 or x_curr[1] >= 0.65:
-				xdot[1] = 0
-			if x_curr[2] <= 0.08 or x_curr[2] >= 0.6:
-				xdot[2] = 0
-			qdot = xdot2qdot(xdot, state)
-			q_curr = state['q']
-			if (q_curr[6] > 2.7 and qdot[6] > 0) or (q_curr[6] < -2.7 and qdot[6] < 0):
-				qdot[6] = 0
-			if (q_curr[3] > -0.1 and qdot[3] > 0) or (q_curr[3] < -2.7 and qdot[3] < 0):
-				qdot[3] = 0
-			if (q_curr[5] > 3.6 and qdot[5] > 0) or (q_curr[5] < 0.1 and qdot[5] < 0):
-				qdot[5] = 0
-			send2robot(conn, qdot, mode, traj_name)
-
-		curr_time = time.time()
-		if record and curr_time - start_time >= steptime:
-			corrections.append(state["x"].tolist())
-			start_time = curr_time
-
-"""Play the final trajectory of a method and record it"""
-def final_traj(conn, args, traj_name, algo, iter_count=None):
-	total_time = 45.0
-
-	traj = pickle.load(open(traj_name, "rb" ))
-	if algo=='demo':
-		traj = np.array(traj)[0]
-	if args.task == 'cup':
-		traj[:, 0] = np.clip(traj[:, 0], 0.45, 0.71)
-		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
-		traj[:, 2] = np.clip(traj[:, 2], 0.25, 0.6)
-	else:
-		traj[:, 0] = np.clip(traj[:, 0], 0.2, 0.71)
-		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
-		traj[:, 2] = np.clip(traj[:, 2], 0.1, 0.6)
-
-	traj = Trajectory(traj[:, :6], total_time)
-
-
-	print('[*] Connecting to low-level controller...')
-	print("RETURNING HOME")
-	interface = Joystick()
-	# go2home(conn)
-	print("PRESS START WHEN READY")
-
-	curr_t = 0.0
-	start_t = None
-	play_traj = False
-	dropped = False
-	state = readState(conn)
-	final_traj = []
-	record = False
-	steptime = 0.1
-
-	scale = 1.0
-	mode = "v"
-	while True:
-
-		state = readState(conn)
-		A, B, stop, start = interface.input()
-
-		if start and not play_traj:
-			go2home(conn)
-			play_traj = True
-			record = True
-			print("Recording the final trajectory")
-			start_t = time.time()
-			start_time = time.time()
-
-		if stop and record:
-			filename = "final_trajs/" + algo + "/run_" + args.run_name + ".pkl"
-			for idx in range (len(final_traj)):
-				final_traj[idx] = final_traj[idx] + final_traj[-1]
-
-			pickle.dump(final_traj, open( filename, "wb"))
-			print("[*] Done!")
-			print("[*] I recorded this many datapoints: ", len(final_traj))
-			break
-
-
-		if A:
-			scale = 0.0
-			mode = "k"
-			line = input()
-			if line == 'y':
-				record = True
-			else:
-				break
-
-		elif B:
-			mode = "v"
-			scale = 1.0
-			print("Changing to Veclocity Control Mode")
-
-		if play_traj:
-
-			curr_t = time.time() - start_t
-			# for idx in range (len(traj)-1):
-			# 	while np.linalg.norm(traj[idx+1, :6] - traj[idx, :6]) > 0.02:
-			# 		xdot = traj[idx+1, :6] - traj[idx, :6]
-			x_des = traj.get(curr_t)
-			x_curr = state['x']
-
-			# x_des[0] = np.clip(x_des[0], 0.0, 0.76)
-			# x_des[1] = np.clip(x_des[0], -0.55, 0.65)
-			# x_des[2] = np.clip(x_des[0], 0.08, 0.7)
-
-			# if np.linalg.norm(x_des[:3])>0.76:
-			# 	x_des[2] = x_curr[2]
-
-
-			x_des[3] = wrap_angles(x_des[3])
-			x_des[4] = wrap_angles(x_des[4])
-			x_des[5] = wrap_angles(x_des[5])
-			xdot = 1*scale * (x_des - x_curr)
-			xdot[3] = wrap_angles(xdot[3])
-			xdot[4] = wrap_angles(xdot[4])
-			xdot[5] = wrap_angles(xdot[5])
-			# print("XDES=",x_des)
-			# print("XCUR=", x_curr)
-			# if x_curr[0] <= 0.15 or x_curr[0] >= 0.7:
-			# 	xdot[0] = 0
-			# if x_curr[1] <= -0.4 or x_curr[1] >= 0.65:
-			# 	xdot[1] = 0
-			# if x_curr[2] <= 0.08 or x_curr[2] >= 0.6:
-			# 	xdot[2] = 0
-			qdot = xdot2qdot(xdot, state)
-			q_curr = state['q']
-			if (q_curr[6] > 2.7 and qdot[6] > 0) or (q_curr[6] < -2.7 and qdot[6] < 0):
-				qdot[6] = 0
-			if (q_curr[3] > -0.1 and qdot[3] > 0) or (q_curr[3] < -2.7 and qdot[3] < 0):
-				qdot[3] = 0
-			if (q_curr[5] > 3.6 and qdot[5] > 0) or (q_curr[5] < 0.1 and qdot[5] < 0):
-				qdot[5] = 0
-			send2robot(conn, qdot, mode)
-
-		curr_time = time.time()
-		if record and curr_time - start_time >= steptime:
-			final_traj.append(state["x"].tolist())
-			start_time = curr_time
 
 
 """Collect Physical Human Demonstrations"""
