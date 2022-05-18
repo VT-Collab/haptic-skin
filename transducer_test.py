@@ -19,7 +19,3 @@ def send_arduino(user_input):
 while True:
     user_input = input("Pressure: ")
     send_arduino(user_input)
-
-
-
-

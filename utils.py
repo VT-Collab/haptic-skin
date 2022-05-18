@@ -1,306 +1,24 @@
-#!/usr/bin/env python
-import rospy
-import actionlib
-import sys
-import time
 import numpy as np
-import pygame
+import cv2
+from imutils.video import VideoStream
+import time
 import pickle
-from urdf_parser_py.urdf import URDF
-from pykdl_utils.kdl_kinematics import KDLKinematics
-import copy
-from collections import deque
+import socket
+import sys
+from scipy.interpolate import interp1d
+import pygame
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-from std_msgs.msg import Float64MultiArray, String
-from ur_msgs.msg import IOStates
-from Tkinter import *
-
-from robotiq_2f_gripper_msgs.msg import (
-    CommandRobotiqGripperFeedback, 
-    CommandRobotiqGripperResult, 
-    CommandRobotiqGripperAction, 
-    CommandRobotiqGripperGoal
-)
-
-from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import (
-    Robotiq2FingerGripperDriver as Robotiq
-)
-
-from controller_manager_msgs.srv import (
-    SwitchController, 
-    SwitchControllerRequest, 
-    SwitchControllerResponse
-)
-
-from control_msgs.msg import (
-    FollowJointTrajectoryAction,
-    FollowJointTrajectoryGoal,
-    GripperCommandAction,
-    GripperCommandGoal,
-    GripperCommand
-)
-from trajectory_msgs.msg import (
-    JointTrajectoryPoint
-)
-from sensor_msgs.msg import (
-    JointState
-)
-from geometry_msgs.msg import(
-    TwistStamped,
-    Twist
-)
+import copy
+from torch.optim import Adam
+from torch.nn.utils.convert_parameters import parameters_to_vector
+from scipy.optimize import LinearConstraint, NonlinearConstraint, minimize
 
 
-STEP_SIZE_L = 0.15
-STEP_SIZE_A = 0.2 * np.pi / 4
-STEP_TIME = 0.01
-DEADBAND = 0.1
-MOVING_AVERAGE = 100
+########## robot home joint positions ##########
+HOME = [0.8385, -0.0609, 0.2447, -1.5657, 0.0089, 1.5335, 1.8607]
 
-
-class JoystickControl(object):
-
-    def __init__(self):
-        pygame.init()
-        self.gamepad = pygame.joystick.Joystick(0)
-        self.gamepad.init()
-        self.toggle = False
-        self.action = None
-
-    def getInput(self):
-        pygame.event.get()
-        START = self.gamepad.get_button(7)
-        A = self.gamepad.get_button(0)
-        B = self.gamepad.get_button(1)
-        X = self.gamepad.get_button(2)
-        Y = self.gamepad.get_button(3)
-        return A, B, X, Y, START
-
-
-class TrajectoryClient(object):
-
-    def __init__(self):
-        # Action client for joint move commands
-        self.client = actionlib.SimpleActionClient(
-                '/scaled_pos_joint_traj_controller/follow_joint_trajectory',
-                FollowJointTrajectoryAction)
-        self.client.wait_for_server()
-        # Velocity commands publishSTEP_SIZE_Ler
-        self.vel_pub = rospy.Publisher('/joint_group_vel_controller/command',\
-                 Float64MultiArray, queue_size=100)
-        # Subscribers to update joint state
-        self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
-        # Subscriber for io states
-        self.io_sub = rospy.Subscriber('/ur_hardware_interface/io_states', IOStates, self.io_cb)
-        # publisher for script commands
-        self.script_pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=2)
-        # service call to switch controllers
-        self.switch_controller_cli = rospy.ServiceProxy('/controller_manager/switch_controller',\
-                 SwitchController)
-        self.joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",\
-                            "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        self.base_link = "base_link"
-        self.end_link = "wrist_3_link"
-        self.joint_states = None
-        self.io_states = None
-        self.robot_urdf = URDF.from_parameter_server()
-        self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
-        
-        # Gripper action and client
-        action_name = rospy.get_param('~action_name', 'command_robotiq_action')
-        self.robotiq_client = actionlib.SimpleActionClient(action_name, \
-                                CommandRobotiqGripperAction)
-        self.robotiq_client.wait_for_server()
-        # Initialize gripper
-        goal = CommandRobotiqGripperGoal()
-        goal.emergency_release = False
-        goal.stop = False
-        goal.position = 1.00
-        goal.speed = 0.1
-        goal.force = 5.0
-        # Sends the goal to the gripper.
-        # self.robotiq_client.send_goal(goal)
-
-        # store previous joint vels for moving avg
-        self.qdots = deque(maxlen=MOVING_AVERAGE)
-        for idx in range(MOVING_AVERAGE):
-            self.qdots.append(np.asarray([0.0] * 6))
-
-    def joint_states_cb(self, msg):
-        try:
-            if msg is not None:
-                states = list(msg.position)
-                states[2], states[0] = states[0], states[2]
-                self.joint_states = tuple(states) 
-        except:
-            pass
-
-    def io_cb(self, msg):
-        try:
-            if msg is not None:
-                self.io_states = msg
-        except:
-            pass
-    
-    def switch_controller(self, mode=None):
-        req = SwitchControllerRequest()
-        res = SwitchControllerResponse()
-
-        req.start_asap = False
-        req.timeout = 0.0
-        if mode == 'velocity':
-            req.start_controllers = ['joint_group_vel_controller']
-            req.stop_controllers = ['scaled_pos_joint_traj_controller']
-            req.strictness = req.STRICT
-        elif mode == 'position':
-            req.start_controllers = ['scaled_pos_joint_traj_controller']
-            req.stop_controllers = ['joint_group_vel_controller']
-            req.strictness = req.STRICT
-        else:
-            rospy.logwarn('Unkown mode for the controller!')
-
-        res = self.switch_controller_cli.call(req)
-
-    
-    def forward_kinematics(self, s, end_link="wrist_3_link", base_link="base_link"):
-        return self.kdl_kin.forward(s)
-
-    def joint2pose(self):
-        state = self.kdl_kin.forward(self.joint_states)
-        xyz_lin = np.array(state[:,3][:3]).T
-        xyz_lin = xyz_lin.tolist()
-        R = state[:,:3][:3]
-        beta = -np.arcsin(R[2,0])
-        alpha = np.arctan2(R[2,1]/np.cos(beta),R[2,2]/np.cos(beta))
-        gamma = np.arctan2(R[1,0]/np.cos(beta),R[0,0]/np.cos(beta))
-        xyz_ang = [alpha, beta, gamma]
-        xyz = xyz = np.asarray(xyz_lin[-1]).tolist() + np.asarray(xyz_ang).tolist()
-        return xyz
-
-    def pose2joint(self, pose):
-        return self.kdl_kin.inverse(pose, self.joint_states)
-
-    def qdot2xdot(self, qdot):
-        J = self.kdl_kin.jacobian(self.joint_states)
-        return J.dot(qdot)
-
-    def xdot2qdot(self, xdot):
-        J = self.kdl_kin.jacobian(self.joint_states)
-        J_inv = np.linalg.pinv(J)
-        return J_inv.dot(xdot)
-
-    def compute_limits(self, qdot):
-        if isinstance(qdot[0], list):
-            xdot = self.qdot2xdot(qdot[0])
-        else:
-            xdot = self.qdot2xdot(qdot)
-        # print(xdot)
-        s_next = self.joint2pose() + xdot
-        if s_next[0,2] < 0.2:
-            xdot[0,2] = 0.2 - s_next[0,2]
-        if s_next[0,0] > 0.45 or s_next[0,0] < -0.9:
-            # print("edited x")
-            xdot[0,0] = 0
-        if s_next[0,1] < 0.23 or s_next[0,1] > 1.12:
-            # print("edited y")
-            xdot[0,1] = 0
-        qdot = self.xdot2qdot(xdot.transpose()).transpose()
-        if self.joint_states[2] > -0.7 and qdot[0, 2] > 0:
-            # print("edited qdot")
-            qdot[0, 2] = 0.
-        qdot = qdot.tolist()        
-        return qdot
-
-    def send(self, qdot):
-        self.qdots.append(qdot)
-        qdot_mean = np.mean(self.qdots, axis=0).tolist()
-        cmd_vel = Float64MultiArray()
-        cmd_vel.data = qdot_mean
-        self.vel_pub.publish(cmd_vel)
-
-    def send_joint(self, pos, time):
-        waypoint = JointTrajectoryPoint()
-        waypoint.positions = pos
-        waypoint.time_from_start = rospy.Duration(time)
-        goal = FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = self.joint_names
-        goal.trajectory.points.append(waypoint)
-        goal.trajectory.header.stamp = rospy.Time.now()
-        self.client.send_goal(goal)
-        rospy.sleep(time)
-
-    def actuate_gripper(self, pos, speed, force):
-        Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
-        return self.robotiq_client.get_result()
-
-    def analog_io(self, d_type, pin, val):
-        # current [mA]
-        if d_type == 0:
-            normalized_val = (val - 0.004) / 0.016
-        # current [V]
-        elif d_type == 1:
-            normalized_val = val / 10
-        msg = "sec MyProgram():" + "\n" + \
-                "set_analog_outputdomain(" + str(pin) + "," + str(d_type) + ")\n" + \
-                "set_analog_out(" + str(pin) + "," + str(normalized_val) + ")\n" + \
-                "end " + "\n"
-        n_time = 0
-        while abs(self.io_states.analog_out_states[pin].state - val) > 0.001 and n_time < 20:
-            n_time += 1
-            self.script_pub.publish(msg)
-
-
-
-def go2home(HOME):
-    mover = TrajectoryClient()
-    # Sometime going home fails because joint_states are None
-    while True:
-        try:
-            if np.linalg.norm(np.array(HOME) - np.array(mover.joint_states)) > 0.01:
-                if np.linalg.norm(np.array(HOME) - np.array(mover.joint_states)) < 1.5:
-                    time = 5.
-                else:
-                    time = 8.
-                mover.switch_controller(mode='position')
-                mover.send_joint(HOME, time)
-                mover.client.wait_for_result()
-            mover.switch_controller(mode='velocity')
-        except:
-            continue
-        break
-    return True    
-
-
-# def go2home(RETURN):
-#     mover = TrajectoryClient()
-#     robot_waypoint = 0
-#     # Sometime going home fails because joint_states are None
-#     while True:
-#         try:
-#             if np.linalg.norm(np.array(RETURN[robot_waypoint]) - np.array(mover.joint_states)) > 0.01:
-#                 robot_waypoint += 1
-#                 if np.linalg.norm(np.array(RETURN[robot_waypoint]) - np.array(mover.joint_states)) < 1.5:
-#                     time = 3.
-#                 else:
-#                     time = 5.
-#                 mover.switch_controller(mode='position')
-#                 mover.send_joint(RETURN[robot_waypoint], time)
-#                 mover.client.wait_for_result()
-#             mover.switch_controller(mode='velocity')
-#         except:
-#             continue
-#         break
-#     return True  
-
-
-
-
-
-class interface_GUI(object):
+########## GUI design ##########
+class GUI_Interface(object):
     def __init__(self):
         self.root = Tk()
         self.root.title("Uncertainity Output")
@@ -313,17 +31,543 @@ class interface_GUI(object):
         self.textbox1 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox1.grid(row = 0, column = 1,  pady = 10, padx = 20)
         self.textbox1.insert(0,0)
-        
+
         # Z Uncertainty
         myLabel2 = Label(self.root, text = "Z", font=("Palatino Linotype", 40))
         myLabel2.grid(row = 1, column = 0, pady = 50, padx = 50)
         self.textbox2 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox2.grid(row = 1, column = 1,  pady = 10, padx = 20)
         self.textbox2.insert(0,0)
-        
+
         # ROT Uncertainty
         myLabel3 = Label(self.root, text = "ROT", font=("Palatino Linotype", 40))
         myLabel3.grid(row = 2, column = 0, pady = 50, padx = 50)
         self.textbox3 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox3.grid(row = 2, column = 1,  pady = 10, padx = 20)
         self.textbox3.insert(0,0)
+
+
+########## Logitech joystick ##########
+class JoystickControl(object):
+
+	def __init__(self):
+		pygame.init()
+		self.gamepad = pygame.joystick.Joystick(0)
+		self.gamepad.init()
+		self.deadband = 0.1
+		self.timeband = 0.5
+		self.lastpress = time.time()
+
+	def getInput(self):
+		pygame.event.get()
+		curr_time = time.time()
+		A_pressed = self.gamepad.get_button(0) and (curr_time - self.lastpress > self.timeband)
+		B_pressed = self.gamepad.get_button(1) and (curr_time - self.lastpress > self.timeband)
+		X_pressed = self.gamepad.get_button(2) and (curr_time - self.lastpress > self.timeband)
+		Y_pressed = self.gamepad.get_button(3) and (curr_time - self.lastpress > self.timeband)
+		START_pressed = self.gamepad.get_button(7) and (curr_time - self.lastpress > self.timeband)
+		if A_pressed or START_pressed or B_pressed:
+			self.lastpress = curr_time
+		return A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed
+
+
+class TrajectoryClient(object):
+
+	def __init__(self):
+		pass
+
+	def connect2robot(self, PORT):
+		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		s.bind(('172.16.0.3', PORT))
+		s.listen()
+		conn, addr = s.accept()
+		return conn
+
+	def send2robot(self, conn, qdot, mode, traj_name=None, limit=0.5):
+		if traj_name is not None:
+			if traj_name[0] == 'q':
+				# print("limit increased")
+				limit = 1.0
+		qdot = np.asarray(qdot)
+		scale = np.linalg.norm(qdot)
+		if scale > limit:
+			qdot *= limit/scale
+		send_msg = np.array2string(qdot, precision=5, separator=',',suppress_small=True)[1:-1]
+		send_msg = "s," + send_msg + "," + mode + ","
+		conn.send(send_msg.encode())
+
+	def send2gripper(self, conn):
+		send_msg = "o"
+		conn.send(send_msg.encode())
+
+	def listen2robot(self, conn):
+		state_length = 7 + 7 + 7 + 42
+		message = str(conn.recv(2048))[2:-2]
+		state_str = list(message.split(","))
+		for idx in range(len(state_str)):
+			if state_str[idx] == "s":
+				state_str = state_str[idx+1:idx+1+state_length]
+				break
+		try:
+			state_vector = [float(item) for item in state_str]
+		except ValueError:
+			return None
+		if len(state_vector) is not state_length:
+			return None
+		state_vector = np.asarray(state_vector)
+		state = {}
+		state["q"] = state_vector[0:7]
+		state["dq"] = state_vector[7:14]
+		state["tau"] = state_vector[14:21]
+		state["J"] = state_vector[21:].reshape((7,6)).T
+
+		# get cartesian pose
+		xyz_lin, R = joint2pose(state_vector[0:7])
+		beta = -np.arcsin(R[2,0])
+		alpha = np.arctan2(R[2,1]/np.cos(beta),R[2,2]/np.cos(beta))
+		gamma = np.arctan2(R[1,0]/np.cos(beta),R[0,0]/np.cos(beta))
+		xyz_ang = [alpha, beta, gamma]
+		xyz = np.asarray(xyz_lin).tolist() + np.asarray(xyz_ang).tolist()
+		state["x"] = np.array(xyz)
+		return state
+
+	def readState(self, conn):
+		while True:
+			state = listen2robot(conn)
+			if state is not None:
+				break
+		return state
+
+	def xdot2qdot(self, xdot, state):
+		J_pinv = np.linalg.pinv(state["J"])
+		return J_pinv @ np.asarray(xdot)
+
+	def joint2pose(self, q):
+		def RotX(q):
+			return np.array([[1, 0, 0, 0], [0, np.cos(q), -np.sin(q), 0], [0, np.sin(q), np.cos(q), 0], [0, 0, 0, 1]])
+		def RotZ(q):
+			return np.array([[np.cos(q), -np.sin(q), 0, 0], [np.sin(q), np.cos(q), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+		def TransX(q, x, y, z):
+			return np.array([[1, 0, 0, x], [0, np.cos(q), -np.sin(q), y], [0, np.sin(q), np.cos(q), z], [0, 0, 0, 1]])
+		def TransZ(q, x, y, z):
+			return np.array([[np.cos(q), -np.sin(q), 0, x], [np.sin(q), np.cos(q), 0, y], [0, 0, 1, z], [0, 0, 0, 1]])
+		H1 = TransZ(q[0], 0, 0, 0.333)
+		H2 = np.dot(RotX(-np.pi/2), RotZ(q[1]))
+		H3 = np.dot(TransX(np.pi/2, 0, -0.316, 0), RotZ(q[2]))
+		H4 = np.dot(TransX(np.pi/2, 0.0825, 0, 0), RotZ(q[3]))
+		H5 = np.dot(TransX(-np.pi/2, -0.0825, 0.384, 0), RotZ(q[4]))
+		H6 = np.dot(RotX(np.pi/2), RotZ(q[5]))
+		H7 = np.dot(TransX(np.pi/2, 0.088, 0, 0), RotZ(q[6]))
+		H_panda_hand = TransZ(-np.pi/4, 0, 0, 0.2105)
+		H = np.linalg.multi_dot([H1, H2, H3, H4, H5, H6, H7, H_panda_hand])
+		return H[:,3][:3], H[:,:3][:3]
+
+
+	def go2home(self, conn, h=None):
+		if h is None:
+			home = np.copy(HOME)
+		else:
+			home = np.copy(h)
+		total_time = 35.0;
+		start_time = time.time()
+		state = readState(conn)
+		current_state = np.asarray(state["q"].tolist())
+
+		# Determine distance between current location and home
+		dist = np.linalg.norm(current_state - home)
+		curr_time = time.time()
+		action_time = time.time()
+		elapsed_time = curr_time - start_time
+
+		# If distance is over threshold then find traj home
+		while dist > 0.02 and elapsed_time < total_time:
+			current_state = np.asarray(state["q"].tolist())
+
+			action_interval = curr_time - action_time
+			if action_interval > 0.005:
+				# Get human action
+				qdot = home - current_state
+				# qdot = np.clip(qdot, -0.3, 0.3)
+				send2robot(conn, qdot, "v")
+				action_time = time.time()
+
+			state = readState(conn)
+			dist = np.linalg.norm(current_state - home)
+			curr_time = time.time()
+			elapsed_time = curr_time - start_time
+
+		# Send completion status
+		if dist <= 0.02:
+			return True
+		elif elapsed_time >= total_time:
+			return False
+
+	def wrap_angles(self, theta):
+		if theta < -np.pi:
+			theta += 2*np.pi
+		elif theta > np.pi:
+			theta -= 2*np.pi
+		else:
+			theta = theta
+		return theta
+
+
+"""Play the trajectory on the robot for Soweing Queries/ Provide corrections"""
+def play_traj(conn, args, traj_name, algo, iter_count=None):
+	total_time = 45.0
+
+	traj = pickle.load(open(traj_name, "rb" ))
+	if args.task == 'cup':
+		traj[:, 0] = np.clip(traj[:, 0], 0.35, 0.71)
+		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
+		traj[:, 2] = np.clip(traj[:, 2], 0.25, 0.6)
+	else:
+		traj[:, 0] = np.clip(traj[:, 0], 0.2, 0.71)
+		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
+		traj[:, 2] = np.clip(traj[:, 2], 0.1, 0.6)
+	traj = Trajectory(traj[:, :6], total_time)
+	# traj[:, 2] = np.clip(traj[:, 2], 0.1, 0.6)
+
+	print('[*] Connecting to low-level controller...')
+	print("RETURNING HOME")
+	interface = Joystick()
+	go2home(conn)
+	print("PRESS START WHEN READY")
+
+	curr_t = 0.0
+	start_t = None
+	play_traj = False
+	dropped = False
+	state = readState(conn)
+	corrections = []
+	C = []
+	record = False
+	steptime = 0.1
+
+	scale = 1.0
+	mode = "v"
+	while True:
+
+		state = readState(conn)
+		A, B, stop, start = interface.input()
+
+		if start and not play_traj:
+			# go2home(conn)
+			play_traj = True
+			start_t = time.time()
+
+		if stop and record:
+			record = False
+			print("Are you satisfied with the demonstration?")
+			print("Enter [yes] to proceed any ANY KEY to scrap it")
+			ans = input()
+			if ans == 'yes':
+				for idx in range (len(corrections)):
+					corrections[idx] = corrections[idx] + corrections[-1]
+				C.append(corrections)
+
+			print("[*] I recorded this many datapoints: ", len(corrections))
+			print("Please Release the E-Stop")
+			corrections = []
+			time.sleep(5)
+
+			if algo == 'ours':
+				go2home(conn, stop_point)
+			else:
+				go2home(conn)
+
+			print("Do you wish to provide another correction?")
+			ans = input()
+			if ans == 'y':
+				record = True
+			else:
+				if iter_count is None:
+					filename = "corrections/" + algo + "/run_" + args.run_name + "/correction.pkl"
+				else:
+					filename = "corrections/" + algo + "/run_" + args.run_name + "/corr_" + str(iter_count) + ".pkl"
+				print("I have this many corrections:", len(C))
+				if algo == 'ours':
+					pickle.dump(C[0], open(filename, 'wb'))
+				else:
+					pickle.dump(C, open(filename, 'wb'))
+				break
+
+
+		# if stop and not record:
+		# 	if iter_count is None:
+		# 		filename = "corrections/" + algo + "/run_" + args.run_name + "/correction.pkl"
+		# 	else:
+		# 		filename = "corrections/" + algo + "/run_" + args.run_name + "/corr_" + str(iter_count) + ".pkl"
+		# 	print("I have this many corrections:", len(C))
+		# 	pickle.dump(C, open(filename, 'wb'))
+		# 	break
+
+
+		if A:
+			scale = 0.0
+			mode = "k"
+			print("Changing to Kinesthetic Control Mode")
+			print("please press E-STOP")
+			print("Do you wish to provide a Correction?")
+			stop_point = state['q']
+			if algo == 'ours':
+				go2home(conn, stop_point)
+			else:
+				go2home(conn)
+			line = input()
+			if line == 'y':
+				record = True
+				start_time = time.time()
+				print("Recording the correction")
+			else:
+				break
+
+		elif B:
+			mode = "v"
+			scale = 1.0
+			print("Changing to Veclocity Control Mode")
+
+		if play_traj:
+
+
+			curr_t = time.time() - start_t
+			x_des = traj.get(curr_t)
+			x_curr = state['x']
+
+			# x_des[0] = np.clip(x_des[0], 0.0, 0.76)
+			# x_des[1] = np.clip(x_des[0], -0.55, 0.65)
+			# x_des[2] = np.clip(x_des[0], 0.08, 0.7)
+
+			# if np.linalg.norm(x_des[:3])>0.76:
+			# 	x_des[2] = x_curr[2]
+
+
+
+			x_des[3] = wrap_angles(x_des[3])
+			x_des[4] = wrap_angles(x_des[4])
+			x_des[5] = wrap_angles(x_des[5])
+			xdot = 1*scale * (x_des - x_curr)
+			xdot[3] = wrap_angles(xdot[3])
+			xdot[4] = wrap_angles(xdot[4])
+			xdot[5] = wrap_angles(xdot[5])
+			# print(x_des)
+			if x_curr[0] <= 0.15 or x_curr[0] >= 0.7:
+				xdot[0] = 0
+			if x_curr[1] <= -0.4 or x_curr[1] >= 0.65:
+				xdot[1] = 0
+			if x_curr[2] <= 0.08 or x_curr[2] >= 0.6:
+				xdot[2] = 0
+			qdot = xdot2qdot(xdot, state)
+			q_curr = state['q']
+			if (q_curr[6] > 2.7 and qdot[6] > 0) or (q_curr[6] < -2.7 and qdot[6] < 0):
+				qdot[6] = 0
+			if (q_curr[3] > -0.1 and qdot[3] > 0) or (q_curr[3] < -2.7 and qdot[3] < 0):
+				qdot[3] = 0
+			if (q_curr[5] > 3.6 and qdot[5] > 0) or (q_curr[5] < 0.1 and qdot[5] < 0):
+				qdot[5] = 0
+			send2robot(conn, qdot, mode, traj_name)
+
+		curr_time = time.time()
+		if record and curr_time - start_time >= steptime:
+			corrections.append(state["x"].tolist())
+			start_time = curr_time
+
+"""Play the final trajectory of a method and record it"""
+def final_traj(conn, args, traj_name, algo, iter_count=None):
+	total_time = 45.0
+
+	traj = pickle.load(open(traj_name, "rb" ))
+	if algo=='demo':
+		traj = np.array(traj)[0]
+	if args.task == 'cup':
+		traj[:, 0] = np.clip(traj[:, 0], 0.45, 0.71)
+		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
+		traj[:, 2] = np.clip(traj[:, 2], 0.25, 0.6)
+	else:
+		traj[:, 0] = np.clip(traj[:, 0], 0.2, 0.71)
+		traj[:, 1] = np.clip(traj[:, 1], -0.4, 0.6)
+		traj[:, 2] = np.clip(traj[:, 2], 0.1, 0.6)
+
+	traj = Trajectory(traj[:, :6], total_time)
+
+
+	print('[*] Connecting to low-level controller...')
+	print("RETURNING HOME")
+	interface = Joystick()
+	# go2home(conn)
+	print("PRESS START WHEN READY")
+
+	curr_t = 0.0
+	start_t = None
+	play_traj = False
+	dropped = False
+	state = readState(conn)
+	final_traj = []
+	record = False
+	steptime = 0.1
+
+	scale = 1.0
+	mode = "v"
+	while True:
+
+		state = readState(conn)
+		A, B, stop, start = interface.input()
+
+		if start and not play_traj:
+			go2home(conn)
+			play_traj = True
+			record = True
+			print("Recording the final trajectory")
+			start_t = time.time()
+			start_time = time.time()
+
+		if stop and record:
+			filename = "final_trajs/" + algo + "/run_" + args.run_name + ".pkl"
+			for idx in range (len(final_traj)):
+				final_traj[idx] = final_traj[idx] + final_traj[-1]
+
+			pickle.dump(final_traj, open( filename, "wb"))
+			print("[*] Done!")
+			print("[*] I recorded this many datapoints: ", len(final_traj))
+			break
+
+
+		if A:
+			scale = 0.0
+			mode = "k"
+			line = input()
+			if line == 'y':
+				record = True
+			else:
+				break
+
+		elif B:
+			mode = "v"
+			scale = 1.0
+			print("Changing to Veclocity Control Mode")
+
+		if play_traj:
+
+			curr_t = time.time() - start_t
+			# for idx in range (len(traj)-1):
+			# 	while np.linalg.norm(traj[idx+1, :6] - traj[idx, :6]) > 0.02:
+			# 		xdot = traj[idx+1, :6] - traj[idx, :6]
+			x_des = traj.get(curr_t)
+			x_curr = state['x']
+
+			# x_des[0] = np.clip(x_des[0], 0.0, 0.76)
+			# x_des[1] = np.clip(x_des[0], -0.55, 0.65)
+			# x_des[2] = np.clip(x_des[0], 0.08, 0.7)
+
+			# if np.linalg.norm(x_des[:3])>0.76:
+			# 	x_des[2] = x_curr[2]
+
+
+			x_des[3] = wrap_angles(x_des[3])
+			x_des[4] = wrap_angles(x_des[4])
+			x_des[5] = wrap_angles(x_des[5])
+			xdot = 1*scale * (x_des - x_curr)
+			xdot[3] = wrap_angles(xdot[3])
+			xdot[4] = wrap_angles(xdot[4])
+			xdot[5] = wrap_angles(xdot[5])
+			# print("XDES=",x_des)
+			# print("XCUR=", x_curr)
+			# if x_curr[0] <= 0.15 or x_curr[0] >= 0.7:
+			# 	xdot[0] = 0
+			# if x_curr[1] <= -0.4 or x_curr[1] >= 0.65:
+			# 	xdot[1] = 0
+			# if x_curr[2] <= 0.08 or x_curr[2] >= 0.6:
+			# 	xdot[2] = 0
+			qdot = xdot2qdot(xdot, state)
+			q_curr = state['q']
+			if (q_curr[6] > 2.7 and qdot[6] > 0) or (q_curr[6] < -2.7 and qdot[6] < 0):
+				qdot[6] = 0
+			if (q_curr[3] > -0.1 and qdot[3] > 0) or (q_curr[3] < -2.7 and qdot[3] < 0):
+				qdot[3] = 0
+			if (q_curr[5] > 3.6 and qdot[5] > 0) or (q_curr[5] < 0.1 and qdot[5] < 0):
+				qdot[5] = 0
+			send2robot(conn, qdot, mode)
+
+		curr_time = time.time()
+		if record and curr_time - start_time >= steptime:
+			final_traj.append(state["x"].tolist())
+			start_time = curr_time
+
+
+"""Collect Physical Human Demonstrations"""
+def collect_demos(conn, args):
+
+	print("RETURNING HOME")
+	interface = Joystick()
+	# go2home(conn)
+	print("PRESS START WHEN READY")
+
+	state = readState(conn)
+	print(state['x'])
+	qdot = [0.0]*7
+	demonstration = []
+	record = False
+	steptime = 0.1
+	XI = []
+	scale = 1.0
+	mode = "k"
+	while True:
+
+		state = readState(conn)
+		# print(state['x'])
+
+		A, B, stop, start = interface.input()
+
+		if A:
+			record = False
+			print("Are you satisfied with the demonstration?")
+			print("Enter [yes] to proceed any ANY KEY to scrap it")
+			ans = input()
+			if ans == 'yes':
+				for idx in range (len(demonstration)):
+					demonstration[idx] = demonstration[idx] + demonstration[-1]
+				XI.append(demonstration)
+				print("[*] Done!")
+				print("[*] I recorded this many datapoints: ", len(demonstration))
+			demonstration = []
+			print("Please release the E-Stop")
+			time.sleep(5)
+			go2home(conn)
+			print("Press START for another demonstration or X to save the dataset")
+
+
+		if stop:
+			pickle.dump(XI, open('../demos/run_' + args.run_name + '/demo_expert.pkl', "wb"))
+
+			demos = pickle.load(open('../demos/run_' + args.run_name + '/demo_expert.pkl', "rb"))
+			XI = []
+			print(len(demos))
+			for idx in range(len(demos)):
+				demo = []
+				demo1 = np.array(demos[idx])
+				for d_idx in range (len(demo1)-1):
+					if np.linalg.norm(demo1[d_idx,:6] - demo1[d_idx+1, :6]) > 0.001:
+						demo.append(demo1[d_idx,:])
+
+				XI.append(demo)
+				print(len(XI))
+
+			pickle.dump(XI, open('../demos/run_' + args.run_name + '/demo_train.pkl', "wb"))
+			return True
+
+
+		if start and not record:
+			record = True
+			start_time = time.time()
+			print('[*] Recording the demonstration...')
+
+		curr_time = time.time()
+		if record and curr_time - start_time >= steptime:
+			demonstration.append(state["x"].tolist())
+			start_time = curr_time
+
+		send2robot(conn, qdot, mode)
+
+
+# get_target()
