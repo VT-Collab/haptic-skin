@@ -28,37 +28,30 @@ PORT_robot = 8080
 conn = Panda.connect2robot(PORT_robot)
 
 # send robot to home
-panda.go2home(HOME)
-time.sleep(3)
-exit()
-
+print('[*] Sending Panda to home...')
+Panda.go2home(conn, HOME)
+# time.sleep(3)
 
 print("[*] Press A to START Recording")
 print("[*] Press B to STOP Recording")
 
 data = []
 record = False
+shutdown = False
 step_time = 0.1
 
-while not True:
+while not shutdown:
     # read robot states
-    s = list(UR10.joint_states)
-
+    state = Panda.readState(conn)
+    joint_pos = state["q"].tolist()
 
     # joystick commands
-    A, B, X, Y, start = joystick.getInput()
-    if X and gripper_open:
-        UR10.actuate_gripper(0.05, 0.1, 1)
-        gripper_open = False
-
-    if Y and not gripper_open:
-        UR10.actuate_gripper(1, 0.1, 1)
-        gripper_open = True
-
+    A, B, _, _, _ = joystick.getInput()
     if record and B:
         pickle.dump(data, open(filename, "wb"))
         print("[*] Saved Recording")
-        # return True
+        # print(data)
+        shutdown = True
 
     elif not record and A:
         record = True
@@ -68,7 +61,6 @@ while not True:
         print("[*] Recording...")
 
     curr_time = time.time()
-
     if record and curr_time - last_time > step_time:
-        data.append(s)
+        data.append(joint_pos)
         last_time = curr_time
