@@ -50,7 +50,7 @@ while not shutdown:
     if record and B:
         pickle.dump(data, open(filename, "wb"))
         print("[*] Saved Recording")
-        # print(data)
+        print(data)
         shutdown = True
 
     elif not record and A:

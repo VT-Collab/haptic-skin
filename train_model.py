@@ -9,8 +9,8 @@ import argparse
 
 
 parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
-parser.add_argument('--who', help='expert vs. user(i)', type=str)
-parser.add_argument('--feature', help='XY, Z, ROT', type=str)
+parser.add_argument('--who', help='expert vs. user(i)', type=str, default="expert")
+parser.add_argument('--feature', help='XY, Z, ROT', type=str, default="XY")
 args = parser.parse_args()
 
 
@@ -31,8 +31,8 @@ class BC(nn.Module):
 
     def __init__(self, hidden_dim):
         super(BC, self).__init__()
-        self.state_dim = 6        
-        self.action_dim = 6
+        self.state_dim = 7
+        self.action_dim = 7
         self.linear1 = nn.Linear(self.state_dim, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, self.action_dim)
@@ -91,7 +91,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-

@@ -1,62 +1,21 @@
-import rospy
-import actionlib
 import sys
 import time
 import numpy as np
 import pygame
-from urdf_parser_py.urdf import URDF
-from pykdl_utils.kdl_kinematics import KDLKinematics
 import copy
 import pickle
 import torch
 from collections import deque
 import argparse
 from train_model import BC
-from positions import HOME
 import argparse
-from utils import JoystickControl
+from utils import JoystickControl, TrajectoryClient, HOME
 
-from std_msgs.msg import Float64MultiArray
-
-from robotiq_2f_gripper_msgs.msg import (
-    CommandRobotiqGripperFeedback,
-    CommandRobotiqGripperResult,
-    CommandRobotiqGripperAction,
-    CommandRobotiqGripperGoal
-)
-
-from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import (
-    Robotiq2FingerGripperDriver as Robotiq
-)
-
-from controller_manager_msgs.srv import (
-    SwitchController,
-    SwitchControllerRequest,
-    SwitchControllerResponse
-)
-
-from control_msgs.msg import (
-    FollowJointTrajectoryAction,
-    FollowJointTrajectoryGoal,
-    GripperCommandAction,
-    GripperCommandGoal,
-    GripperCommand
-)
-from trajectory_msgs.msg import (
-    JointTrajectoryPoint
-)
-from sensor_msgs.msg import (
-    JointState
-)
-from geometry_msgs.msg import(
-    TwistStamped,
-    Twist
-)
 
 
 parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
-parser.add_argument('--who', help='expert vs. user(i)', type=str)
-parser.add_argument('--feature', help='XY, Z, ROT', type=str)
+parser.add_argument('--who', help='expert vs. user(i)', type=str, default="expert")
+parser.add_argument('--feature', help='XY, Z, ROT', type=str, default="XY")
 args = parser.parse_args()
 
 
@@ -66,7 +25,6 @@ elif args.who[0:4] == "user":
     model_name = args.who + "_model_1"
 
 ACTION_SCALE = 0.15
-MOVING_AVERAGE = 10
 
 
 class Model(object):
@@ -81,170 +39,48 @@ class Model(object):
         action = self.model.encoder(s_tensor).detach().numpy()
         return action
 
-    
-class TrajectoryClient(object):
 
-    def __init__(self):
-        # Action client for joint move commands
-        self.client = actionlib.SimpleActionClient(
-                '/scaled_pos_joint_traj_controller/follow_joint_trajectory',
-                FollowJointTrajectoryAction)
-        self.client.wait_for_server()
-
-        # Velocity commands publisher
-        self.vel_pub = rospy.Publisher('/joint_group_vel_controller/command',\
-                 Float64MultiArray, queue_size=10)
-
-        # Subscribers to update joint state
-        self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_states_cb)
-
-        # service call to switch controllers
-        self.switch_controller_cli = rospy.ServiceProxy('/controller_manager/switch_controller',\
-                 SwitchController)
-        self.joint_names = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",\
-                            "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
-        self.base_link = "base_link"
-        self.end_link = "wrist_3_link"
-        self.joint_states = None
-        self.robot_urdf = URDF.from_parameter_server()
-        self.kdl_kin = KDLKinematics(self.robot_urdf, self.base_link, self.end_link)
-
-        # Gripper action and client
-        action_name = rospy.get_param('~action_name', 'command_robotiq_action')
-        self.robotiq_client = actionlib.SimpleActionClient(action_name, \
-                                CommandRobotiqGripperAction)
-        self.robotiq_client.wait_for_server()
-
-        # Initialize gripper
-        goal = CommandRobotiqGripperGoal()
-        goal.emergency_release = False
-        goal.stop = False
-        goal.position = 1.00
-        goal.speed = 0.1
-        goal.force = 5.0
-
-        # Sends the goal to the gripper.
-        # self.robotiq_client.send_goal(goal)
-
-        # store previous joint vels for moving avg
-        self.qdots = deque(maxlen=MOVING_AVERAGE)
-        for idx in range(MOVING_AVERAGE):
-            self.qdots.append(np.asarray([0.0] * 6))
-
-    def joint_states_cb(self, msg):
-        try:
-            if msg is not None:
-                states = list(msg.position)
-                states[2], states[0] = states[0], states[2]
-                self.joint_states = tuple(states)
-        except:
-            pass
-
-    def switch_controller(self, mode=None):
-        req = SwitchControllerRequest()
-        res = SwitchControllerResponse()
-
-        req.start_asap = False
-        req.timeout = 0.0
-        if mode == 'velocity':
-            req.start_controllers = ['joint_group_vel_controller']
-            req.stop_controllers = ['scaled_pos_joint_traj_controller']
-            req.strictness = req.STRICT
-        elif mode == 'position':
-            req.start_controllers = ['scaled_pos_joint_traj_controller']
-            req.stop_controllers = ['joint_group_vel_controller']
-            req.strictness = req.STRICT
-        else:
-            rospy.logwarn('Unkown mode for the controller!')
-
-        res = self.switch_controller_cli.call(req)
-
-    def xdot2qdot(self, xdot):
-        J = self.kdl_kin.jacobian(self.joint_states)
-        J_inv = np.linalg.pinv(J)
-        return J_inv.dot(xdot)
-
-    def send(self, qdot):
-        self.qdots.append(qdot)
-        qdot_mean = np.mean(self.qdots, axis=0).tolist()
-        cmd_vel = Float64MultiArray()
-        cmd_vel.data = qdot_mean
-        self.vel_pub.publish(cmd_vel)
-
-    def send_joint(self, pos, time):
-        waypoint = JointTrajectoryPoint()
-        waypoint.positions = pos
-        waypoint.time_from_start = rospy.Duration(time)
-        goal = FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = self.joint_names
-        goal.trajectory.points.append(waypoint)
-        goal.trajectory.header.stamp = rospy.Time.now()
-        self.client.send_goal(goal)
-        rospy.sleep(time)
-
-    def actuate_gripper(self, pos, speed, force):
-        Robotiq.goto(self.robotiq_client, pos=pos, speed=speed, force=force, block=True)
-        return self.robotiq_client.get_result()
+# instantiate the robot, joystick, and model
+Panda = TrajectoryClient()
+joystick = JoystickControl()
+model = Model(model_name)
 
 
-def main():
-    rospy.init_node("play_MLP")
-    mover = TrajectoryClient()
-    joystick = JoystickControl()
-    model = Model(model_name)
-    rate = rospy.Rate(100)
+# establish socket connection with panda
+print('[*] Connecting to Panda...')
+PORT_robot = 8080
+conn = Panda.connect2robot(PORT_robot)
 
-    print("[*] Initialized, Moving Home")
-    mover.switch_controller(mode='position')
-    mover.send_joint(HOME, 5.0)
-    mover.client.wait_for_result()
-    mover.switch_controller(mode='velocity')
-    print("[*] Ready for velocity commands")
+# send robot to home
+print('[*] Sending Panda to home...')
+Panda.go2home(conn, HOME)
+# time.sleep(3)
 
-    # mover.actuate_gripper(1, 0.1, 1)
-    gripper_open = True
-    # rospy.sleep(0.5)
+run = False
+shutdown = False
+n_samples = 100
 
-    run = False
-    shutdown = False
-    n_samples = 100
+while not shutdown:
+    state = Panda.readState(conn)
+    joint_pos = state["q"].tolist()
 
+    a = model.policy(joint_pos) * 100.0
+    qdot = a - joint_pos
+    print("qdot: ", qdot)
 
-    while not rospy.is_shutdown():
+    if np.linalg.norm(qdot) > ACTION_SCALE:
+        qdot = qdot / np.linalg.norm(qdot) * ACTION_SCALE
 
-        s = list(mover.joint_states)
-        a = model.policy(s) * 100.0
-       
-        if np.linalg.norm(a) > ACTION_SCALE:
-            a = a / np.linalg.norm(a) * ACTION_SCALE
+    A, B, _, _, _ = joystick.getInput()
 
-        A, B, X, Y, start = joystick.getInput()
-        if X and gripper_open:
-            mover.actuate_gripper(0.05, 0.1, 1)
-            gripper_open = False
-        if Y and not gripper_open:
-            mover.actuate_gripper(1, 0.1, 1)
-            gripper_open = True
-        if A:
-            run = True
-            print("[*] Robot is moving")
-        if B:
-            print('[*] Robot stopped!')
-            run = False
-            shutdown = True
-            time_stop = time.time()
-        if not run:
-            a = np.asarray([0.0] * 6)
-        if not run and shutdown and time.time() - time_stop > 2.0:
-            mover.actuate_gripper(1, 0.1, 1)
-            return True
+    if A:
+        run = True
+        print("[*] Robot is moving")
+    if B:
+        print('[*] Robot stopped!')
+        run = False
+        shutdown = True
+    if not run:
+        qdot = np.asarray([0.0] * 6)
 
-        mover.send(a)
-        rate.sleep()
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except rospy.ROSInterruptException:
-        pass
+    Panda.send2robot(conn, qdot, "v")
