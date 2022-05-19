@@ -30,12 +30,13 @@ for filename in files:
     print("[*] Number of data points: ", len(traj))
     traj = np.asarray(traj)
     for idx in range(len(traj) - n_lookahead):
-        s = traj[idx]
-        s_next = traj[idx + n_lookahead]
+        state = traj[idx][:7]
+        segment = traj[idx][-1]
+        state_next = traj[idx + n_lookahead][:7]
         for _ in range(n_upsamples):
-            s = np.copy(s) + np.random.normal(0, noise, 7)
-            a = s_next - s
-            sa_pairs.append(s.tolist() + a.tolist())
+            state = np.copy(state) + np.random.normal(0, noise, 7)
+            action = state_next - state
+            sa_pairs.append([segment] + state.tolist() + action.tolist())
 
 pickle.dump(sa_pairs, open("data/training/" + args.feature + "/" + args.who + "_sa_pairs.pkl", "wb"))
 print("I have this many state-action pairs: ", len(sa_pairs))

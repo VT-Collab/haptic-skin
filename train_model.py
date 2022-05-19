@@ -32,8 +32,9 @@ class BC(nn.Module):
     def __init__(self, hidden_dim):
         super(BC, self).__init__()
         self.state_dim = 7
+        self.segment_dim = 1
         self.action_dim = 7
-        self.linear1 = nn.Linear(self.state_dim, hidden_dim)
+        self.linear1 = nn.Linear(self.state_dim + self.segment_dim, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, self.action_dim)
         self.loss_func = nn.MSELoss()
@@ -44,8 +45,8 @@ class BC(nn.Module):
         return self.linear3(h2)
 
     def forward(self, x):
-        state = x[:, :self.state_dim]
-        a_target = x[:, self.action_dim:]
+        state = x[:, :self.state_dim + self.segment_dim]
+        a_target = x[:, self.action_dim+1:]
         a_predicted = self.encoder(state)
         loss = self.loss(a_predicted, a_target)
         return loss

@@ -45,7 +45,6 @@ Panda = TrajectoryClient()
 joystick = JoystickControl()
 model = Model(model_name)
 
-
 # establish socket connection with panda
 print('[*] Connecting to Panda...')
 PORT_robot = 8080
@@ -54,7 +53,6 @@ conn = Panda.connect2robot(PORT_robot)
 # send robot to home
 print('[*] Sending Panda to home...')
 Panda.go2home(conn, HOME)
-# time.sleep(3)
 
 run = False
 shutdown = False
@@ -64,15 +62,13 @@ while not shutdown:
     state = Panda.readState(conn)
     joint_pos = state["q"].tolist()
 
-    a = model.policy(joint_pos) * 100.0
-    qdot = a - joint_pos
-    print("qdot: ", qdot)
+    action = model.policy(joint_pos) * 100.0
+    qdot = action - joint_pos
 
     if np.linalg.norm(qdot) > ACTION_SCALE:
         qdot = qdot / np.linalg.norm(qdot) * ACTION_SCALE
 
     A, B, _, _, _ = joystick.getInput()
-
     if A:
         run = True
         print("[*] Robot is moving")
@@ -81,6 +77,6 @@ while not shutdown:
         run = False
         shutdown = True
     if not run:
-        qdot = np.asarray([0.0] * 6)
-
+        qdot = np.asarray([0.0] * 7)
+    # print("qdot: ", qdot)
     Panda.send2robot(conn, qdot, "v")

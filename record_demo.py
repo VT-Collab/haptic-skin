@@ -38,7 +38,8 @@ print("[*] Press B to STOP Recording")
 data = []
 record = False
 shutdown = False
-step_time = 0.1
+segment = 0
+step_time = 0.05
 
 while not shutdown:
     # read robot states
@@ -46,7 +47,7 @@ while not shutdown:
     joint_pos = state["q"].tolist()
 
     # joystick commands
-    A, B, _, _, _ = joystick.getInput()
+    A, B, _, _, START = joystick.getInput()
     if record and B:
         pickle.dump(data, open(filename, "wb"))
         print("[*] Saved Recording")
@@ -58,9 +59,13 @@ while not shutdown:
         last_time = time.time()
         start_time = time.time()
         time_last_segment = time.time()
-        print("[*] Recording...")
+        print("[*] Recording segment ", segment)
 
     curr_time = time.time()
+    if START and record and curr_time - time_last_segment > 0.5:
+        segment += 1
+        print("[*] Next segment: ", segment)
+        time_last_segment = time.time()
     if record and curr_time - last_time > step_time:
-        data.append(joint_pos)
+        data.append(joint_pos + [segment])
         last_time = curr_time
