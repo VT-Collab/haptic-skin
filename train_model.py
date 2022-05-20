@@ -32,9 +32,9 @@ class BC(nn.Module):
     def __init__(self, hidden_dim):
         super(BC, self).__init__()
         self.state_dim = 7
-        self.segment_dim = 1
         self.action_dim = 7
-        self.linear1 = nn.Linear(self.state_dim + self.segment_dim, hidden_dim)
+
+        self.linear1 = nn.Linear(self.state_dim , hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, self.action_dim)
         self.loss_func = nn.MSELoss()
@@ -45,8 +45,8 @@ class BC(nn.Module):
         return self.linear3(h2)
 
     def forward(self, x):
-        state = x[:, :self.state_dim + self.segment_dim]
-        a_target = x[:, self.action_dim+1:]
+        state = x[:, :self.state_dim]
+        a_target = x[:, self.action_dim:]
         a_predicted = self.encoder(state)
         loss = self.loss(a_predicted, a_target)
         return loss
@@ -64,7 +64,7 @@ def main():
 
     if args.who == "expert":
         n_models = 5
-        BATCH_SIZE_TRAIN = 200
+        BATCH_SIZE_TRAIN = 2500
     elif args.who[0:4] == "user":
         n_models = 1
         BATCH_SIZE_TRAIN = 400
@@ -74,9 +74,9 @@ def main():
 
 
     for n in range(n_models):
-        print
+        print()
         print('[*] Training model ' + str(n+1))
-        model = BC(32)
+        model = BC(64)
         optimizer = optim.Adam(model.parameters(), lr=LR)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP_SIZE, gamma=LR_GAMMA)
         for epoch in range(EPOCH):

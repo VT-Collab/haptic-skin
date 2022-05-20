@@ -94,7 +94,7 @@ class TrajectoryClient(object):
         send_msg = "o"
         conn.send(send_msg.encode())
 
-    def send2robot(self, conn, qdot, mode, traj_name=None, limit=0.5):
+    def send2robot(self, conn, qdot, mode, traj_name=None, limit=1.0):
     	if traj_name is not None:
     		if traj_name[0] == 'q':
     			limit = 1.0

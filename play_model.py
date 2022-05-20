@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 
 if args.who == "expert":
-    model_name = "expert_model_3"
+    model_name = "expert_model_1"
 elif args.who[0:4] == "user":
     model_name = args.who + "_model_1"
 
@@ -29,7 +29,7 @@ ACTION_SCALE = 0.15
 
 class Model(object):
     def __init__(self, model_name):
-        self.model = BC(32)
+        self.model = BC(64)
         model_dict = torch.load("data/models/" + args.feature + "/" + model_name, map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
