@@ -15,7 +15,6 @@ from utils import JoystickControl, TrajectoryClient, HOME
 
 parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
 parser.add_argument('--who', help='expert vs. user(i)', type=str, default="expert")
-parser.add_argument('--feature', help='XY, Z, ROT', type=str, default="XY")
 args = parser.parse_args()
 
 
@@ -29,8 +28,8 @@ ACTION_SCALE = 0.15
 
 class Model(object):
     def __init__(self, model_name):
-        self.model = BC(64)
-        model_dict = torch.load("data/models/" + args.feature + "/" + model_name, map_location='cpu')
+        self.model = BC(32)
+        model_dict = torch.load("data/models/" + model_name, map_location='cpu')
         self.model.load_state_dict(model_dict)
         self.model.eval
 
@@ -54,6 +53,8 @@ conn = Panda.connect2robot(PORT_robot)
 print('[*] Sending Panda to home...')
 Panda.go2home(conn, HOME)
 
+print("[*] Press A to start robot")
+
 run = False
 shutdown = False
 n_samples = 100
@@ -62,7 +63,7 @@ while not shutdown:
     state = Panda.readState(conn)
     joint_pos = state["q"].tolist()
 
-    action = model.policy(joint_pos) * 100.0
+    action = model.policy(joint_pos) * 50.0
     qdot = action - joint_pos
 
     if np.linalg.norm(qdot) > ACTION_SCALE:

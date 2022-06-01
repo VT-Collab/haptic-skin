@@ -10,7 +10,6 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Preparing state-action pair dataset')
 parser.add_argument('--who', help='expert vs. user(i)', type=str, default="expert")
-parser.add_argument('--feature', help='XY, Z, ROT', type=str, default="XY")
 args = parser.parse_args()
 
 
@@ -37,12 +36,19 @@ class BC(nn.Module):
         self.linear1 = nn.Linear(self.state_dim , hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, self.action_dim)
+
+        # self.linear1 = nn.Linear(self.state_dim , hidden_dim)
+        # self.linear21 = nn.Linear(hidden_dim, 2*hidden_dim)
+        # self.linear2 = nn.Linear(2*hidden_dim, hidden_dim)
+        # self.linear3 = nn.Linear(hidden_dim, self.action_dim)
+
         self.loss_func = nn.MSELoss()
 
     def encoder(self, state):
-        h1 = torch.tanh(self.linear1(state))
-        h2 = torch.tanh(self.linear2(h1))
-        return self.linear3(h2)
+        h = torch.tanh(self.linear1(state))
+        # h = torch.tanh(self.linear21(h))
+        h = torch.tanh(self.linear2(h))
+        return self.linear3(h)
 
     def forward(self, x):
         state = x[:, :self.state_dim]
@@ -63,20 +69,20 @@ def main():
     LR_GAMMA = 0.1
 
     if args.who == "expert":
-        n_models = 5
-        BATCH_SIZE_TRAIN = 2500
+        n_models = 1
+        BATCH_SIZE_TRAIN = 250
     elif args.who[0:4] == "user":
         n_models = 1
         BATCH_SIZE_TRAIN = 400
 
-    train_data = HumanData("data/training/"+ args.feature + "/" + args.who + "_sa_pairs.pkl")
+    train_data = HumanData("data/training/" + args.who + "_sa_pairs.pkl")
     train_set = DataLoader(dataset=train_data, batch_size=BATCH_SIZE_TRAIN, shuffle=True)
 
 
     for n in range(n_models):
         print()
         print('[*] Training model ' + str(n+1))
-        model = BC(64)
+        model = BC(32)
         optimizer = optim.Adam(model.parameters(), lr=LR)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP_SIZE, gamma=LR_GAMMA)
         for epoch in range(EPOCH):
@@ -88,7 +94,7 @@ def main():
             scheduler.step()
             if epoch % 100 == 0:
                 print(epoch, loss.item())
-        torch.save(model.state_dict(), "data/models/" + args.feature + "/" + args.who + "_model_" + str(n+1))
+        torch.save(model.state_dict(), "data/models/" + args.who + "_model_" + str(n+1))
 
 if __name__ == "__main__":
     main()

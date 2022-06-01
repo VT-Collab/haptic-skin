@@ -8,14 +8,13 @@ from utils import JoystickControl, TrajectoryClient, HOME
 
 parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
 parser.add_argument('--who', help='expert vs. user(i)', type=str, default="expert")
-parser.add_argument('--feature', help='XY, Z, ROT', type=str, default="XY")
 parser.add_argument('--trial', help='demonstration index', type=str, default="0")
 args = parser.parse_args()
 
 if args.who == "expert":
-    filename = "data/demos/" + args.feature + "/" + args.who + "_" + args.trial + ".pkl"
+    filename = "data/demos/" + args.who + "_" + args.trial + ".pkl"
 elif args.who[0:4] == "user":
-    filename = "data/demos/" + args.feature + "/" + args.who + ".pkl"
+    filename = "data/demos/" + args.who + ".pkl"
 
 # instantiate the robot and joystick
 Panda = TrajectoryClient()
@@ -70,7 +69,7 @@ while not shutdown:
         print("[*] Recording segment: ", segment)
         time_last_segment = time.time()
     if record and curr_time - last_time > step_time:
-        data.append(joint_pos + [segment])
+        data.append(joint_pos)
         last_time = curr_time
 
     qdot = [0]*7
