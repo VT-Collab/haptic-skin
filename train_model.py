@@ -70,7 +70,7 @@ def main():
 
     if args.who == "expert":
         n_models = 1
-        BATCH_SIZE_TRAIN = 250
+        BATCH_SIZE_TRAIN = 200
     elif args.who[0:4] == "user":
         n_models = 1
         BATCH_SIZE_TRAIN = 400
