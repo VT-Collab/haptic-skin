@@ -69,7 +69,7 @@ def main():
     LR_GAMMA = 0.1
 
     if args.who == "expert":
-        n_models = 1
+        n_models = 5
         BATCH_SIZE_TRAIN = 200
     elif args.who[0:4] == "user":
         n_models = 1

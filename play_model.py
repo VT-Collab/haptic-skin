@@ -19,7 +19,7 @@ args = parser.parse_args()
 
 
 if args.who == "expert":
-    model_name = "expert_model_1"
+    model_name = "expert_model_4"
 elif args.who[0:4] == "user":
     model_name = args.who + "_model_1"
 
@@ -57,7 +57,6 @@ print("[*] Press A to start robot")
 
 run = False
 shutdown = False
-n_samples = 100
 
 while not shutdown:
     state = Panda.readState(conn)
