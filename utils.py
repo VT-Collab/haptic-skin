@@ -14,8 +14,7 @@ from tkinter import *
 
 
 ########## robot home joint positions ##########
-# HOME = [-0.03, -0.95, 0.036, -2.23, 0.02, 1.3, -0.92]
-HOME = [-0.7, -0.61, -0.05, -2.14, -0.07, 1.53, -1.58]
+HOME = [-.9, -0.06, -1.46, -1.73, -0.72, 2.4, 0.62]
 
 ########## GUI design ##########
 class GUI_Interface(object):
