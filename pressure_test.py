@@ -11,11 +11,11 @@ comm_arduino = serial.Serial('/dev/ttyACM1', baudrate=9600)
 
 
 def send_arduino(user_input):
-	string = '<' + str(user_input) + '>'
-	comm_arduino.write(string)
+	string = '<' + user_input + '>'
+	comm_arduino.write(str.encode(string))
 
 
 
 while True:
-    user_input = input("Pressure: ")
-    send_arduino(user_input)
+	user_input = input("Pressure: ")
+	send_arduino(user_input)

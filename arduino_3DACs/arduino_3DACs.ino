@@ -8,7 +8,9 @@ Adafruit_MCP4725 dac3;
 float P;
 float V;
 float temp_dac_input;
-float dac_in;
+float dac_in_1;
+float dac_in_2;
+float dac_in_3;
 float I;
 
 
@@ -35,18 +37,18 @@ void loop() {
     p_string = showNewData();
     if (p_string != "")
     {
-      P = p_string.toFloat();
-      Serial.println(P);      
-      I = (P+7.5)*8.0/15.0;      
-      V = (I-4.0)/3.2;    
-          
-      temp_dac_input = V*4095.0/5.0;        
-      dac_in = (int)temp_dac_input;
+      
+      String p_1 = p_string.substring(0,1);
+      String p_2 = p_string.substring(1,2);
+      String p_3 = p_string.substring(2,3);
+
+      dac_in_1 = getDAC_Input(p_1);
+      dac_in_2 = getDAC_Input(p_2);
+      dac_in_3 = getDAC_Input(p_3);
             
-      dac1.setVoltage(dac_in, false);
-      dac2.setVoltage(dac_in, false);
-      dac3.setVoltage(dac_in, false);
-            
+      dac1.setVoltage(dac_in_1, false);     
+      dac2.setVoltage(dac_in_2, false);      
+      dac3.setVoltage(dac_in_3, false);            
     } 
   }
 }
@@ -109,4 +111,16 @@ String convertToString(char* a, int size)
         s = s + a[i];
     }
     return s;
+}
+
+
+
+int getDAC_Input(String p){
+  
+      P = p.toFloat();
+      Serial.println(P);       
+      I = (P+7.5)*8.0/15.0;            
+      V = (I-4.0)/3.2;              
+      temp_dac_input = V*4095.0/5.0;        
+      return (int)temp_dac_input;
 }
