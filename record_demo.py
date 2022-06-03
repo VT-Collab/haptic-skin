@@ -5,6 +5,8 @@ import argparse
 from utils import GUI_Interface, JoystickControl, TrajectoryClient, HOME, R_desire
 from tkinter import *
 from pyquaternion import Quaternion
+import serial
+
 
 parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
 parser.add_argument('--method', help='GUI, local, global', type=str)
@@ -36,7 +38,7 @@ print("[*] Press B to STOP Recording")
 # initilize GUI
 GUI = GUI_Interface()
 # serial communication
-# comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
+comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
 
 data = {}
 q = []
@@ -104,7 +106,6 @@ while not shutdown:
                 signal_xy, signal_z, signal_orien = 0, 0, 0
             elif curr_xyz[0] > 0.4:
                 signal_xy, signal_z, signal_orien = 0, 0, signal[2]
-
             # update GUI
             passed_time = time.time() - last_update
             if passed_time > refresh_time:
@@ -116,11 +117,28 @@ while not shutdown:
                 GUI.textbox3.insert(0, signal_orien)
                 GUI.root.update()
                 last_update = time.time()
+
         elif args.method == "local":
-            signal = [Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / alpha,
-                      abs(-0.4 - curr_xyz[1]) / alpha,
-                      abs(0.0 - curr_xyz[2]) / alpha]
+            # segment assignment
+            if curr_xyz[0] < 0.2:
+                signal_xy, signal_z, signal_orien = 0, 0, signal[2]
+            elif 0.2 <= curr_xyz[0] <= 0.4:
+                signal_xy, signal_z, signal_orien = signal[0], 0, 0
+            elif curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
+                signal_xy, signal_z, signal_orien = 0, 0, 0
+            elif curr_xyz[0] > 0.4:
+                signal_xy, signal_z, signal_orien = 0, signal[1], 0
+
+            # send pressure signal to Arduino
+            send_arduino(comm_arduino, str(signal_xy) + str(signal_z) + str(signal_orien))
+
         elif args.method == "global":
-            signal = [abs(0.0 - curr_xyz[2]) / alpha,
-                      Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / alpha,
-                      abs(-0.4 - curr_xyz[1]) / alpha]
+            # segment assignment
+            if curr_xyz[0] < 0.2:
+                signal_xy, signal_z, signal_orien = 0, signal[1], 0
+            elif 0.2 <= curr_xyz[0] <= 0.4:
+                signal_xy, signal_z, signal_orien = 0, 0, signal[2]
+            elif curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
+                signal_xy, signal_z, signal_orien = 0, 0, 0
+            elif curr_xyz[0] > 0.4:
+                signal_xy, signal_z, signal_orien = signal[0], 0, 0

@@ -40,9 +40,7 @@ void loop() {
       
       String p_1 = p_string.substring(0,1);
       String p_2 = p_string.substring(1,2);
-      String p_3 = p_string.substring(2,3);
-      Serial.println(p_2);
-      Serial.println(p_3);              
+      String p_3 = p_string.substring(2,3);      
 
       dac_in_1 = getDAC_Input(p_1);
       dac_in_2 = getDAC_Input(p_2);
