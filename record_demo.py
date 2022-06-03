@@ -90,9 +90,11 @@ while not shutdown:
 
     alpha = 0.5
     beta = 0.8
-    signal = np.round(np.array([3.0 * abs(-0.4 - curr_xyz[1]) / alpha,
+    uncertainty = np.array([3.0 * abs(-0.4 - curr_xyz[1]) / alpha,
               3.0 * abs(0.0 - curr_xyz[2]) / alpha,
-              3.0 * Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / beta]), 1)
+              3.0 * Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / beta])
+
+    signal = np.clip(np.round(uncertainty, 1), 0, 3)
 
     # feedback signal assignment
     if args.method:
