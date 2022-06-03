@@ -18,7 +18,4 @@ def send_arduino(user_input):
 
 while True:
 	user_input = input("Pressure: ")
-	if len(user_input) == 3:
-		send_arduino(user_input)
-	else:
-		pass
+	send_arduino(user_input)

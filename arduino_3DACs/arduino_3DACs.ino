@@ -14,7 +14,7 @@ float dac_in_3;
 float I;
 
 
-const byte numChars = 6;
+const byte numChars = 12;
 char receivedChars[numChars];
 int chr_size;
 char ex_char = 'a';
@@ -37,15 +37,15 @@ void loop() {
     p_string = showNewData();
     if (p_string != "")
     {
-      
-      String p_1 = p_string.substring(0,1);
-      String p_2 = p_string.substring(1,2);
-      String p_3 = p_string.substring(2,3);      
+      Serial.println(p_string);
+      String p_1 = getValue(p_string,';',0);
+      String p_2 = getValue(p_string,';',1);
+      String p_3 = getValue(p_string,';',2);     
 
       dac_in_1 = getDAC_Input(p_1);
       dac_in_2 = getDAC_Input(p_2);
       dac_in_3 = getDAC_Input(p_3);
-            
+          
       dac1.setVoltage(dac_in_1, false);     
       dac2.setVoltage(dac_in_2, false);      
       dac3.setVoltage(dac_in_3, false);            
@@ -89,13 +89,9 @@ void recvWithStartEndMarkers() {
 String showNewData() {
     String s;
     if (newData == true) {
-//        Serial.print("This just in ... ");
-//        Serial.println(receivedChars);
         newData = false;
-
         int ch_size;
-        char temp = 'a';
-        
+        char temp = 'a';        
         ch_size = sizeof(receivedChars)/sizeof(temp);
         s = convertToString(receivedChars, ch_size);        
     }
@@ -122,4 +118,21 @@ int getDAC_Input(String p){
       V = (I-4.0)/3.2;              
       temp_dac_input = V*4095.0/5.0;        
       return (int)temp_dac_input;
+}
+
+
+String getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length()-1;
+
+  for(int i=0; i<=maxIndex && found<=index; i++){
+    if(data.charAt(i)==separator || i==maxIndex){
+        found++;
+        strIndex[0] = strIndex[1]+1;
+        strIndex[1] = (i == maxIndex) ? i+1 : i;
+    }
+  }
+  return found>index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
