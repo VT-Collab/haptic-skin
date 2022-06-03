@@ -4,10 +4,10 @@ import pickle
 import socket
 import sys
 import pygame
-import serial
 import copy
 from pyquaternion import Quaternion
 from tkinter import *
+import serial
 
 
 ########## robot home joint positions ##########
@@ -17,10 +17,9 @@ R_desire = np.array([[0.57805195, -0.81587643,  0.01419845],
                     [0.01099801, -0.00960871, -0.99989335]])
 
 ########## Serial Comm. with Arduino ##########
-def send_arduino(comm, user_input):
-	string = '<' + user_input + '>'
-	comm.write(str.encode(string))
-
+def send_serial(comm, output):
+    string = '<' + output + '>'
+    comm.write(str.encode(string))
 
 ########## GUI design ##########
 class GUI_Interface(object):
@@ -105,10 +104,7 @@ class TrajectoryClient(object):
         send_msg = "o"
         conn.send(send_msg.encode())
 
-    def send2robot(self, conn, qdot, mode, traj_name=None, limit=1.0):
-    	if traj_name is not None:
-    		if traj_name[0] == 'q':
-    			limit = 1.0
+    def send2robot(self, conn, qdot, mode, limit=1.0):
     	qdot = np.asarray(qdot)
     	scale = np.linalg.norm(qdot)
     	if scale > limit:
@@ -228,82 +224,3 @@ class TrajectoryClient(object):
         # else:
         # 	theta = theta
         # return theta
-
-
-
-# """Collect Physical Human Demonstrations"""
-# def collect_demos(conn, args):
-#
-# 	print("RETURNING HOME")
-# 	interface = Joystick()
-# 	# go2home(conn)
-# 	print("PRESS START WHEN READY")
-#
-# 	state = readState(conn)
-# 	print(state['x'])
-# 	qdot = [0.0]*7
-# 	demonstration = []
-# 	record = False
-# 	steptime = 0.1
-# 	XI = []
-# 	scale = 1.0
-# 	mode = "k"
-# 	while True:
-#
-# 		state = readState(conn)
-# 		# print(state['x'])
-#
-# 		A, B, stop, start = interface.input()
-#
-# 		if A:
-# 			record = False
-# 			print("Are you satisfied with the demonstration?")
-# 			print("Enter [yes] to proceed any ANY KEY to scrap it")
-# 			ans = input()
-# 			if ans == 'yes':
-# 				for idx in range (len(demonstration)):
-# 					demonstration[idx] = demonstration[idx] + demonstration[-1]
-# 				XI.append(demonstration)
-# 				print("[*] Done!")
-# 				print("[*] I recorded this many datapoints: ", len(demonstration))
-# 			demonstration = []
-# 			print("Please release the E-Stop")
-# 			time.sleep(5)
-# 			go2home(conn)
-# 			print("Press START for another demonstration or X to save the dataset")
-#
-#
-# 		if stop:
-# 			pickle.dump(XI, open('../demos/run_' + args.run_name + '/demo_expert.pkl', "wb"))
-#
-# 			demos = pickle.load(open('../demos/run_' + args.run_name + '/demo_expert.pkl', "rb"))
-# 			XI = []
-# 			print(len(demos))
-# 			for idx in range(len(demos)):
-# 				demo = []
-# 				demo1 = np.array(demos[idx])
-# 				for d_idx in range (len(demo1)-1):
-# 					if np.linalg.norm(demo1[d_idx,:6] - demo1[d_idx+1, :6]) > 0.001:
-# 						demo.append(demo1[d_idx,:])
-#
-# 				XI.append(demo)
-# 				print(len(XI))
-#
-# 			pickle.dump(XI, open('../demos/run_' + args.run_name + '/demo_train.pkl', "wb"))
-# 			return True
-#
-#
-# 		if start and not record:
-# 			record = True
-# 			start_time = time.time()
-# 			print('[*] Recording the demonstration...')
-#
-# 		curr_time = time.time()
-# 		if record and curr_time - start_time >= steptime:
-# 			demonstration.append(state["x"].tolist())
-# 			start_time = curr_time
-#
-# 		send2robot(conn, qdot, mode)
-#
-#
-# # get_target()

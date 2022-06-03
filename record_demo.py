@@ -2,14 +2,14 @@ import time
 import numpy as np
 import pickle
 import argparse
-from utils import GUI_Interface, JoystickControl, TrajectoryClient, HOME, R_desire
+from utils import *
 from tkinter import *
 from pyquaternion import Quaternion
 import serial
 
 
 parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
-parser.add_argument('--method', help='GUI, local, global', type=str)
+parser.add_argument('--method', help='GUI, local, global', type=str, default="None")
 parser.add_argument('--who', help='expert vs. user(i)', type=str, default="expert")
 parser.add_argument('--trial', help='demonstration index', type=str, default="0")
 args = parser.parse_args()
@@ -37,6 +37,7 @@ print("[*] Press B to STOP Recording")
 
 # initilize GUI
 GUI = GUI_Interface()
+
 # serial communication
 comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
 
@@ -63,8 +64,9 @@ while not shutdown:
     # joystick commands
     A, B, _, _, START = joystick.getInput()
     if record and B:
-        mode = "v"
         shutdown = True
+        mode = "v"
+        send_serial(comm_arduino, "0.0;0.0;0.0")
         data["joint positions"] = q
         data["ee positions"] = ee
         data["rotation matrix"] = R
@@ -86,59 +88,68 @@ while not shutdown:
     qdot = [0]*7
     Panda.send2robot(conn, qdot, mode)
 
-
     alpha = 0.5
     beta = 0.8
-    signal = [3.0 * abs(-0.4 - curr_xyz[1]) / alpha,
+    signal = np.round(np.array([3.0 * abs(-0.4 - curr_xyz[1]) / alpha,
               3.0 * abs(0.0 - curr_xyz[2]) / alpha,
-              3.0 * Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / beta]
+              3.0 * Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / beta]), 1)
 
-
-    # methods: GUI, local, global, none
+    # feedback signal assignment
     if args.method:
         if args.method == "GUI":
             # segment assignment
             if curr_xyz[0] < 0.2:
-                signal_xy, signal_z, signal_orien = 0, signal[1], 0
+                signal_xy, signal_z, signal_orien = 0.0, signal[1], 0.0
             elif 0.2 <= curr_xyz[0] <= 0.4:
-                signal_xy, signal_z, signal_orien = signal[0], 0, 0
+                signal_xy, signal_z, signal_orien = signal[0], 0.0, 0.0
             elif curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
-                signal_xy, signal_z, signal_orien = 0, 0, 0
+                signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > 0.4:
-                signal_xy, signal_z, signal_orien = 0, 0, signal[2]
-            # update GUI
-            passed_time = time.time() - last_update
-            if passed_time > refresh_time:
-                GUI.textbox1.delete(0, END)
-                GUI.textbox1.insert(0, signal_xy)
-                GUI.textbox2.delete(0, END)
-                GUI.textbox2.insert(0, signal_z)
-                GUI.textbox3.delete(0, END)
-                GUI.textbox3.insert(0, signal_orien)
-                GUI.root.update()
-                last_update = time.time()
+                signal_xy, signal_z, signal_orien = 0.0, 0.0, signal[2]
 
-        elif args.method == "local":
+        if args.method == "local":
             # segment assignment
             if curr_xyz[0] < 0.2:
-                signal_xy, signal_z, signal_orien = 0, 0, signal[2]
+                signal_xy, signal_z, signal_orien = 0.0, 0.0, signal[2]
             elif 0.2 <= curr_xyz[0] <= 0.4:
-                signal_xy, signal_z, signal_orien = signal[0], 0, 0
+                signal_xy, signal_z, signal_orien = signal[0], 0.0, 0.0
             elif curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
-                signal_xy, signal_z, signal_orien = 0, 0, 0
+                signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > 0.4:
-                signal_xy, signal_z, signal_orien = 0, signal[1], 0
-
-            # send pressure signal to Arduino
-            send_arduino(comm_arduino, str(signal_xy) + str(signal_z) + str(signal_orien))
+                signal_xy, signal_z, signal_orien = 0.0, signal[1], 0.0
 
         elif args.method == "global":
             # segment assignment
             if curr_xyz[0] < 0.2:
-                signal_xy, signal_z, signal_orien = 0, signal[1], 0
+                signal_xy, signal_z, signal_orien = 0.0, signal[1], 0.0
             elif 0.2 <= curr_xyz[0] <= 0.4:
-                signal_xy, signal_z, signal_orien = 0, 0, signal[2]
+                signal_xy, signal_z, signal_orien = 0.0, 0.0, signal[2]
             elif curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
-                signal_xy, signal_z, signal_orien = 0, 0, 0
+                signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > 0.4:
-                signal_xy, signal_z, signal_orien = signal[0], 0, 0
+                signal_xy, signal_z, signal_orien = signal[0], 0.0, 0.0
+
+
+    # render feedback signals
+    if args.method:
+        if shutdown:
+            print("[*] Shutting down...")
+            signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
+        else:
+            passed_time = time.time() - last_update
+            if passed_time > refresh_time:
+                # update GUI
+                if args.method == "GUI":
+                    GUI.textbox1.delete(0, END)
+                    GUI.textbox1.insert(0, signal_xy)
+                    GUI.textbox2.delete(0, END)
+                    GUI.textbox2.insert(0, signal_z)
+                    GUI.textbox3.delete(0, END)
+                    GUI.textbox3.insert(0, signal_orien)
+                    GUI.root.update()
+                    last_update = time.time()
+                # inflate bags locally or globally
+                if args.method == "local" or "global":
+                    pressure = str(signal_xy) + ";" + str(signal_z) + ";" + str(signal_orien)
+                    # send pressure signal to Arduino
+                    send_serial(comm_arduino, pressure)

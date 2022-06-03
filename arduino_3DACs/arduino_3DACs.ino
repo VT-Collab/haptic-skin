@@ -14,7 +14,7 @@ float dac_in_3;
 float I;
 
 
-const byte numChars = 12;
+const byte numChars = 11;
 char receivedChars[numChars];
 int chr_size;
 char ex_char = 'a';
@@ -40,7 +40,7 @@ void loop() {
       Serial.println(p_string);
       String p_1 = getValue(p_string,';',0);
       String p_2 = getValue(p_string,';',1);
-      String p_3 = getValue(p_string,';',2);     
+      String p_3 = getValue(p_string,';',2);
 
       dac_in_1 = getDAC_Input(p_1);
       dac_in_2 = getDAC_Input(p_2);
@@ -87,14 +87,14 @@ void recvWithStartEndMarkers() {
 
 
 String showNewData() {
-    String s;
+    String s;    
     if (newData == true) {
         newData = false;
         int ch_size;
         char temp = 'a';        
-        ch_size = sizeof(receivedChars)/sizeof(temp);
+        ch_size = sizeof(receivedChars)/sizeof(temp);  
         s = convertToString(receivedChars, ch_size);        
-    }
+    }    
     return s;
 }
 
@@ -111,8 +111,8 @@ String convertToString(char* a, int size)
 
 
 
-int getDAC_Input(String p){
-  
+int getDAC_Input(String p)
+{
       P = p.toFloat();      
       I = (P+7.5)*8.0/15.0;            
       V = (I-4.0)/3.2;              
