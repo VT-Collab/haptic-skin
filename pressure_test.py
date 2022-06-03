@@ -7,7 +7,7 @@ import pickle
 import argparse
 
 
-comm_arduino = serial.Serial('/dev/ttyACM1', baudrate=9600)
+comm_arduino = serial.Serial('/dev/ttyACM0', baudrate=9600)
 
 
 def send_arduino(user_input):
@@ -18,4 +18,7 @@ def send_arduino(user_input):
 
 while True:
 	user_input = input("Pressure: ")
-	send_arduino(user_input)
+	if len(user_input) == 3:
+		send_arduino(user_input)
+	else:
+		pass
