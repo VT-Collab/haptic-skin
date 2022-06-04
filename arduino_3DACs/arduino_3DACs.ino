@@ -14,7 +14,7 @@ float dac_in_3;
 float I;
 
 
-const byte numChars = 11;
+const byte numChars = 12;
 char receivedChars[numChars];
 int chr_size;
 char ex_char = 'a';
@@ -23,7 +23,7 @@ boolean newData = false;
 
 void setup() {
     Serial.begin(9600);
-    Serial.setTimeout(2);
+    Serial.setTimeout(1000);
     dac1.begin(0x60);
     dac2.begin(0x62);
     dac3.begin(0x63);    
@@ -37,11 +37,11 @@ void loop() {
     p_string = showNewData();
     if (p_string != "")
     {
-      Serial.println(p_string);
+//      /Serial.println(p_string);
       String p_1 = getValue(p_string,';',0);
       String p_2 = getValue(p_string,';',1);
       String p_3 = getValue(p_string,';',2);
-
+     
       dac_in_1 = getDAC_Input(p_1);
       dac_in_2 = getDAC_Input(p_2);
       dac_in_3 = getDAC_Input(p_3);
@@ -68,7 +68,7 @@ void recvWithStartEndMarkers() {
             if (rc != endMarker) {
                 receivedChars[ndx] = rc;
                 ndx++;
-                if (ndx >= numChars) {
+                if (ndx > numChars) {
                     ndx = numChars - 1;
                 }
             }
