@@ -62,9 +62,9 @@ beta = 0.8
 max_press = 3.5
 
 # margins in robot workspace
-x_margin_1 = 0.1
-x_margin_2 = 0.4
-y_margin = 0.2
+x_margin_1 = 0.2
+x_margin_2 = 0.55
+y_margin = 0.16
 
 while not shutdown:
     # read robot states
@@ -103,63 +103,64 @@ while not shutdown:
     Panda.send2robot(conn, qdot, mode)
 
     # compute distance from optimal trajectory
-    dist = np.array([max_press * abs(-0.45 - curr_xyz[1]) / alpha,
+    uncert = np.array([max_press * abs(-0.4 - curr_xyz[1]) / alpha,
               max_press * abs(0.05 - curr_xyz[2]) / alpha,
               max_press * Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / beta])
 
-    if args.method:
+    if args.method != "None":
         if args.method == "GUI":
             # segment assignment
-            if curr_xyz[0] < 0.2:
-                signal_xy, signal_z, signal_orien = 0.0, dist[1], 0.0
-            elif 0.2 <= curr_xyz[0] <= 0.4:
-                signal_xy, signal_z, signal_orien = dist[0], 0.0, 0.0
-            elif curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
+            if curr_xyz[0] < x_margin_1:
+                signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.1, uncert[0]*0.15
+            elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
+                signal_xy, signal_z, signal_orien = uncert[2]*0.15, uncert[2]*0.1, uncert[2]
+            elif curr_xyz[0] > x_margin_2 and curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
-            elif curr_xyz[0] > 0.4:
-                signal_xy, signal_z, signal_orien = 0.0, 0.0, dist[2]
+            elif curr_xyz[0] > x_margin_2:
+                signal_xy, signal_z, signal_orien = uncert[1]*0.1, uncert[1], uncert[1]*0.15
 
         if args.method == "local":
             # segment assignment
             if curr_xyz[0] < x_margin_1:
-                signal_xy, signal_z, signal_orien = 0.0, 0.0, dist[2]
+                signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[0]*0.05
             elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
-                signal_xy, signal_z, signal_orien = dist[0], 0.0, 0.0
+                signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.02, uncert[0]*0.05
             elif curr_xyz[0] > x_margin_2 and curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > x_margin_2:
-                signal_xy, signal_z, signal_orien = 0.0, dist[1], 0.0
+                signal_xy, signal_z, signal_orien = uncert[2]*0.02, uncert[2]*0.05, uncert[2]
 
         elif args.method == "global":
             # segment assignment
-            if curr_xyz[0] < 0.2:
-                signal_xy, signal_z, signal_orien = 0.0, dist[1], 0.0
-            elif 0.2 <= curr_xyz[0] <= 0.4:
-                signal_xy, signal_z, signal_orien = 0.0, 0.0, dist[2]
-            elif curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
+            if curr_xyz[0] < x_margin_1:
+                signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.05, uncert[0]*0.02
+            elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
+                signal_xy, signal_z, signal_orien = uncert[2]*0.05, uncert[2]*0.02, uncert[2]
+            elif curr_xyz[0] > x_margin_2 and curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
-            elif curr_xyz[0] > 0.4:
-                signal_xy, signal_z, signal_orien = dist[0], 0.0, 0.0
+            elif curr_xyz[0] > x_margin_2:
+                signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[1]*0.05
 
-    # compute signal change
-    new_signal = np.array([signal_xy, signal_z, signal_orien])
-    if curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
-        diff = 1.0
-    else:
-        diff = abs(np.linalg.norm(new_signal) - np.linalg.norm(signal))
 
     # render feedback signals
-    if args.method:
+    if args.method != "None":
+        # compute signal change
+        new_signal = np.array([signal_xy, signal_z, signal_orien])
+
+        if curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
+            diff = 1.0
+        else:
+            diff = abs(np.linalg.norm(new_signal) - np.linalg.norm(signal))
         passed_time = time.time() - last_update
-        if passed_time > refresh_time and diff > 0.3:
+        if passed_time > refresh_time and diff > 0.1:
             # update GUI
             if args.method == "GUI":
                 GUI.textbox1.delete(0, END)
-                GUI.textbox1.insert(0, signal_xy)
+                GUI.textbox1.insert(0, 100*new_signal[0])
                 GUI.textbox2.delete(0, END)
-                GUI.textbox2.insert(0, signal_z)
+                GUI.textbox2.insert(0, 100*new_signal[1])
                 GUI.textbox3.delete(0, END)
-                GUI.textbox3.insert(0, signal_orien)
+                GUI.textbox3.insert(0, 100*new_signal[2])
                 GUI.root.update()
                 last_update = time.time()
             # inflate bags locally or globally
@@ -170,3 +171,5 @@ while not shutdown:
                 if shutdown:
                     print("[*] Shutting down...")
                     signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
+    else:
+        new_signal = np.zeros([1,3])

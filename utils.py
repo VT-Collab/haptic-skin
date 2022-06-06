@@ -11,10 +11,10 @@ import serial
 
 
 ########## robot home joint positions ##########
-HOME = [-1.44, -0.21, -0.53, -2.0, -1.01, 2.4, 1.08]
-R_desire = np.array([[-0.06125523, -0.99783973,  0.02374175],
-                        [-0.99712063,  0.06011116, -0.0462287],
-                        [ 0.04470169, -0.02650513, -0.99864871]])
+HOME = [-1.47, -0.67, -0.78, -1.96, -1.91, 2.17, 0.61]
+R_desire = np.array([[0.15892129, -0.98682649,  0.0302903],
+                        [-0.98460255, -0.16067659, -0.06885388],
+                        [0.07281377, -0.01888156, -0.99716681]])
 
 ########## Serial Comm. with Arduino ##########
 def send_serial(comm, output):
@@ -25,33 +25,31 @@ def send_serial(comm, output):
 class GUI_Interface(object):
     def __init__(self):
         self.root = Tk()
+        self.root.geometry("+1000+100")
         self.root.title("Uncertainity Output")
         self.update_time = 0.02
         font = "Palatino Linotype"
-        # self.root.mainloop()
 
         # X_Y Uncertainty
-        myLabel1 = Label(self.root, text = "X-Y", font=(font, 40))
+        myLabel1 = Label(self.root, text = "Distance From You", font=(font, 40))
         myLabel1.grid(row = 0, column = 0, pady = 50, padx = 50)
         self.textbox1 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox1.grid(row = 0, column = 1,  pady = 10, padx = 20)
         self.textbox1.insert(0,0)
 
         # Z Uncertainty
-        myLabel2 = Label(self.root, text = "Z", font=("Palatino Linotype", 40))
+        myLabel2 = Label(self.root, text = "Height from Table", font=("Palatino Linotype", 40))
         myLabel2.grid(row = 1, column = 0, pady = 50, padx = 50)
         self.textbox2 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox2.grid(row = 1, column = 1,  pady = 10, padx = 20)
         self.textbox2.insert(0,0)
 
         # ROT Uncertainty
-        myLabel3 = Label(self.root, text = "ROT", font=("Palatino Linotype", 40))
+        myLabel3 = Label(self.root, text = "Orientation", font=("Palatino Linotype", 40))
         myLabel3.grid(row = 2, column = 0, pady = 50, padx = 50)
         self.textbox3 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox3.grid(row = 2, column = 1,  pady = 10, padx = 20)
         self.textbox3.insert(0,0)
-
-        # self.root.mainloop()
 
 
 ########## Logitech joystick ##########
