@@ -11,10 +11,11 @@ import serial
 
 
 ########## robot home joint positions ##########
-HOME = [-1.47, -0.67, -0.78, -1.96, -1.91, 2.17, 0.61]
-R_desire = np.array([[0.15892129, -0.98682649,  0.0302903],
-                        [-0.98460255, -0.16067659, -0.06885388],
-                        [0.07281377, -0.01888156, -0.99716681]])
+HOME = [-1.45, -0.42, -0.88, -2.46, -0.8, 1.72, 2.2]
+R_desire = np.array([[-0.6960978, 0.71676798, -0.0411282],
+                    [0.71706426, 0.69694007, 0.0096642],
+                    [0.03559088, -0.02276434, -0.99910714]])
+
 
 ########## Serial Comm. with Arduino ##########
 def send_serial(comm, output):
@@ -31,7 +32,7 @@ class GUI_Interface(object):
         font = "Palatino Linotype"
 
         # X_Y Uncertainty
-        myLabel1 = Label(self.root, text = "Distance From You", font=(font, 40))
+        myLabel1 = Label(self.root, text = "Distance From Line", font=(font, 40))
         myLabel1.grid(row = 0, column = 0, pady = 50, padx = 50)
         self.textbox1 = Entry(self.root, width = 5, bg = "white", fg = "#676767", borderwidth = 3, font=(font, 40))
         self.textbox1.grid(row = 0, column = 1,  pady = 10, padx = 20)

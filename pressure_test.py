@@ -17,9 +17,10 @@ def send_arduino(user_input):
 last_update = time.time()
 while True:
 	# user_input = input("Pressure: ")
-	# send_arduino(user_input)
+	# print("0.0;" + user_input + ";0.0")
+	# send_arduino("0.0;" + user_input + ";0.0")
 
-	# send_arduino("0.00.01.0")
+	# # send_arduino("0.00.01.0")
 	passed_time = time.time() - last_update
 	if passed_time > 0.1:
 		send_arduino("0.0;0.0;0.0")

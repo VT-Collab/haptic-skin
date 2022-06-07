@@ -9,14 +9,11 @@ import serial
 
 
 parser = argparse.ArgumentParser(description='Collecting offline demonstrations')
-parser.add_argument('--method', help='GUI, local, global', type=str, default="None")
-parser.add_argument('--who', help='expert vs. user(i)', type=str, default="expert")
+parser.add_argument('--method', help='GUI, local, global', type=str, default="none")
+parser.add_argument('--who', help='user(i)', type=str, default="0")
 args = parser.parse_args()
 
-if args.who == "expert":
-    filename = "data/demos/" + args.who + ".pkl"
-elif args.who[0:4] == "user":
-    filename = "data/demos/" + args.who + "_" + args.method + ".pkl"
+filename = "data/demos/user_" + args.who + "_" + args.method + ".pkl"
 
 # instantiate the robot and joystick
 Panda = TrajectoryClient()
@@ -59,12 +56,12 @@ qdot = [0]*7
 # hyperparameters
 alpha = 0.4
 beta = 0.8
-max_press = 3.5
+max_press = 3.2
 
 # margins in robot workspace
 x_margin_1 = 0.2
 x_margin_2 = 0.55
-y_margin = 0.16
+y_margin = 0.2
 
 while not shutdown:
     # read robot states
@@ -103,23 +100,23 @@ while not shutdown:
     Panda.send2robot(conn, qdot, mode)
 
     # compute distance from optimal trajectory
-    uncert = np.array([max_press * abs(-0.4 - curr_xyz[1]) / alpha,
+    uncert = np.array([max_press * abs(-0.5 - curr_xyz[1]) / alpha,
               max_press * abs(0.05 - curr_xyz[2]) / alpha,
               max_press * Quaternion.absolute_distance(Panda.rot2quat(R_desire), curr_quat) / beta])
 
-    if args.method != "None":
+    if args.method != "none":
         if args.method == "GUI":
             # segment assignment
             if curr_xyz[0] < x_margin_1:
-                signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.1, uncert[0]*0.15
+                signal_xy, signal_z, signal_orien = uncert[1]*0.1, uncert[1], uncert[1]*0.15
             elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.15, uncert[2]*0.1, uncert[2]
             elif curr_xyz[0] > x_margin_2 and curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > x_margin_2:
-                signal_xy, signal_z, signal_orien = uncert[1]*0.1, uncert[1], uncert[1]*0.15
+                signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.1, uncert[0]*0.15
 
-        if args.method == "local":
+        if args.method == "global":
             # segment assignment
             if curr_xyz[0] < x_margin_1:
                 signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[0]*0.05
@@ -130,29 +127,29 @@ while not shutdown:
             elif curr_xyz[0] > x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.02, uncert[2]*0.05, uncert[2]
 
-        elif args.method == "global":
+        elif args.method == "local":
             # segment assignment
             if curr_xyz[0] < x_margin_1:
-                signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.05, uncert[0]*0.02
-            elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.05, uncert[2]*0.02, uncert[2]
+            elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
+                signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[1]*0.05
             elif curr_xyz[0] > x_margin_2 and curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > x_margin_2:
-                signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[1]*0.05
+                signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.05, uncert[0]*0.02
 
 
     # render feedback signals
-    if args.method != "None":
+    if args.method != "none":
         # compute signal change
         new_signal = np.array([signal_xy, signal_z, signal_orien])
-
         if curr_xyz[0] > 0.4 and curr_xyz[1] > 0.2:
             diff = 1.0
         else:
             diff = abs(np.linalg.norm(new_signal) - np.linalg.norm(signal))
+
         passed_time = time.time() - last_update
-        if passed_time > refresh_time and diff > 0.1:
+        if passed_time > refresh_time and diff > 0.05:
             # update GUI
             if args.method == "GUI":
                 GUI.textbox1.delete(0, END)
@@ -162,14 +159,16 @@ while not shutdown:
                 GUI.textbox3.delete(0, END)
                 GUI.textbox3.insert(0, 100*new_signal[2])
                 GUI.root.update()
-                last_update = time.time()
+
             # inflate bags locally or globally
             elif args.method == "local" or "global":
                 pressure = np.clip(np.round(new_signal, 1), 0, max_press)
                 send_serial(comm_arduino, str(pressure[0]) + ";" + str(pressure[1]) + ";" + str(pressure[2]))
-                signal = new_signal
                 if shutdown:
                     print("[*] Shutting down...")
                     signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
+
+            signal = new_signal
+            last_update = time.time()
     else:
         new_signal = np.zeros([1,3])
