@@ -156,11 +156,11 @@ while not shutdown:
             # update GUI
             if args.method == "GUI":
                 GUI.textbox1.delete(0, END)
-                GUI.textbox1.insert(0, 100*new_signal[0])
+                GUI.textbox1.insert(0, round(100*new_signal[0], 1))
                 GUI.textbox2.delete(0, END)
-                GUI.textbox2.insert(0, 100*new_signal[1])
+                GUI.textbox2.insert(0, round(100*new_signal[1], 1))
                 GUI.textbox3.delete(0, END)
-                GUI.textbox3.insert(0, 100*new_signal[2])
+                GUI.textbox3.insert(0, round(100*new_signal[2], 1))
                 GUI.root.update()
 
             # inflate bags locally or globally
