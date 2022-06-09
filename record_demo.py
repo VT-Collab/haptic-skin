@@ -58,11 +58,11 @@ alpha = 0.4
 beta = 0.8
 max_press = 3.2
 
-# # margins in robot workspace
-# x_margin_1 = 0.2
-# x_margin_2 = 0.55
-# x_margin_3 = 0.75
-# y_margin = 0.15
+# margins in robot workspace
+x_margin_1 = 0.15
+x_margin_2 = 0.45
+x_margin_3 = 0.75
+y_margin = 0.15
 
 while not shutdown:
     # read robot states

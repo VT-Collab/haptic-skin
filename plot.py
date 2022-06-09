@@ -8,6 +8,11 @@ from scipy import interpolate
 
 from utils import *
 
+########## margins in workspace ##########
+ee_home_x = 0.2
+x_margin_1 = 0.5
+x_margin_2 = 0.8
+x_margin_3 = 1.1
 
 Panda = TrajectoryClient()
 
@@ -55,7 +60,7 @@ for method in ["none", "GUI", "local", "global"]:
     Quat[method] = quat
 
     ### plot user demonstrations: none ###
-    ee_home_x = -0.15
+
     for user_n in range(1, n+1):
 
         # height
