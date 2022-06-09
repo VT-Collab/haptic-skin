@@ -58,11 +58,11 @@ alpha = 0.4
 beta = 0.8
 max_press = 3.2
 
-# margins in robot workspace
-x_margin_1 = 0.2
-x_margin_2 = 0.55
-x_margin_3 = 0.75
-y_margin = 0.15
+# # margins in robot workspace
+# x_margin_1 = 0.2
+# x_margin_2 = 0.55
+# x_margin_3 = 0.75
+# y_margin = 0.15
 
 while not shutdown:
     # read robot states
@@ -112,10 +112,8 @@ while not shutdown:
                 signal_xy, signal_z, signal_orien = uncert[1]*0.1, uncert[1], uncert[1]*0.15
             elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.15, uncert[2]*0.1, uncert[2]
-
             elif curr_xyz[0] > x_margin_3 or curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
-
             elif curr_xyz[0] > x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.1, uncert[0]*0.15
 
@@ -125,7 +123,7 @@ while not shutdown:
                 signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[0]*0.05
             elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.02, uncert[0]*0.05
-            elif curr_xyz[0] > x_margin_2 and curr_xyz[1] > y_margin:
+            elif curr_xyz[0] > x_margin_3 and curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.02, uncert[2]*0.05, uncert[2]
@@ -136,7 +134,7 @@ while not shutdown:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.05, uncert[2]*0.02, uncert[2]
             elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[1]*0.05
-            elif curr_xyz[0] > x_margin_2 and curr_xyz[1] > y_margin:
+            elif curr_xyz[0] > x_margin_3 and curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.05, uncert[0]*0.02
