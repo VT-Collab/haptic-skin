@@ -26,7 +26,11 @@ void setup() {
     Serial.setTimeout(1000);
     dac1.begin(0x60);
     dac2.begin(0x62);
-    dac3.begin(0x63);    
+    dac3.begin(0x63);
+
+    dac1.setVoltage(0.0, false);    
+    dac2.setVoltage(0.0, false);      
+    dac3.setVoltage(0.0, false);
 }
 
 
