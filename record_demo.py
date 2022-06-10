@@ -123,7 +123,7 @@ while not shutdown:
                 signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[0]*0.05
             elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.02, uncert[0]*0.05
-            elif curr_xyz[0] > x_margin_3 and curr_xyz[1] > y_margin:
+            elif curr_xyz[0] > x_margin_3 or curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.02, uncert[2]*0.05, uncert[2]
@@ -134,7 +134,7 @@ while not shutdown:
                 signal_xy, signal_z, signal_orien = uncert[2]*0.05, uncert[2]*0.02, uncert[2]
             elif x_margin_1 <= curr_xyz[0] <= x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[1]*0.02, uncert[1], uncert[1]*0.05
-            elif curr_xyz[0] > x_margin_3 and curr_xyz[1] > y_margin:
+            elif curr_xyz[0] > x_margin_3 or curr_xyz[1] > y_margin:
                 signal_xy, signal_z, signal_orien = 0.0, 0.0, 0.0
             elif curr_xyz[0] > x_margin_2:
                 signal_xy, signal_z, signal_orien = uncert[0], uncert[0]*0.05, uncert[0]*0.02
