@@ -8,11 +8,6 @@ from scipy import interpolate
 
 from utils import *
 
-########## margins in workspace ##########
-ee_home_x = 0.2
-x_margin_1 = 0.5
-x_margin_2 = 0.8
-x_margin_3 = 1.1
 
 Panda = TrajectoryClient()
 
@@ -23,7 +18,7 @@ X = {}
 Y = {}
 Z = {}
 Quat = {}
-n = 5
+n = 6
 
 for method in ["none", "GUI", "local", "global"]:
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12,4))
@@ -68,11 +63,11 @@ for method in ["none", "GUI", "local", "global"]:
         ax1.set_ylim(-0.5, 0.5)
         ax1.title.set_text('Distance From User')
         if method == "GUI":
-            region(ax3, x_margin_2, x_margin_3)
+            region(ax1, 0.8, 1.1)
         elif method == "global":
-            region(ax3, x_margin_1, x_margin_2)
+            region(ax1, 0.5, 0.8)
         elif method == "local":
-            region(ax3, x_margin_2, x_margin_3)
+            region(ax1, 0.8, 1.1)
 
         # height
         ax2.plot(X[method]["user_" + str(user_n)], Z[method]["user_" + str(user_n)])
@@ -81,11 +76,11 @@ for method in ["none", "GUI", "local", "global"]:
         ax2.set_ylim(0, 0.8)
         ax2.title.set_text('Height From Table')
         if method == "GUI":
-            region(ax1, ee_home_x, x_margin_1)
+            region(ax2, 0.2, 0.5)
         elif method == "global":
-            region(ax1, ee_home_x, x_margin_1)
+            region(ax2, 0.2, 0.5)
         elif method == "local":
-            region(ax1, x_margin_1, x_margin_2)
+            region(ax2, 0.5, 0.8)
 
         # orientation
         ax3.plot(X[method]["user_" + str(user_n)], Quat[method]["user_" + str(user_n)])
@@ -94,11 +89,11 @@ for method in ["none", "GUI", "local", "global"]:
         ax3.set_ylim(0, 1.5)
         ax3.title.set_text('End-Effector Orientation')
         if method == "GUI":
-            region(ax2, x_margin_1, x_margin_2)
+            region(ax3, 0.5, 0.8)
         elif method == "global":
-            region(ax2, x_margin_2, x_margin_3)
+            region(ax3, 0.8, 1.1)
         elif method == "local":
-            region(ax2, ee_home_x, x_margin_1)
+            region(ax3, 0.2, 0.5)
 
 
     plt.tight_layout()

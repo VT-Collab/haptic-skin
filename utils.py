@@ -18,6 +18,11 @@ R_desire = np.array([[ 7.44356863e-01,  6.66865793e-01,  3.49696414e-02],
                     [ 6.66166262e-01, -7.45177629e-01,  3.05419708e-02],
                     [ 4.64259900e-02,  5.61469737e-04, -9.98921575e-01]])
 
+########## margins in workspace ##########
+x_margin_1 = 0.15
+x_margin_2 = 0.45
+x_margin_3 = 0.75
+y_margin = 0.15
 
 ########## Serial Comm. with Arduino ##########
 def send_serial(comm, output):
