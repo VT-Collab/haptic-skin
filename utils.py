@@ -11,7 +11,7 @@ import serial
 
 
 ########## robot home joint positions ##########
-HOME = [-1.45, -0.42, -0.88, -2.46, -0.8, 1.72, 2.2]
+HOME = [-1.45, -0.42, -0.88, -2.46, -0.8, 1.72, 0.8]
 
 ########## ee desired orientation ##########
 R_desire = np.array([[ 7.44356863e-01,  6.66865793e-01,  3.49696414e-02],
