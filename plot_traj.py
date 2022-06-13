@@ -5,7 +5,7 @@ import argparse
 import matplotlib.pyplot as plt
 from pyquaternion import Quaternion
 from scipy import interpolate
-
+from cycler import cycler
 from utils import *
 
 
@@ -18,7 +18,10 @@ X = {}
 Y = {}
 Z = {}
 Quat = {}
-n = 6
+n = 4
+colors = np.range(0, 1, 0.1)
+print(colors)
+exit()
 
 for method in ["none", "GUI", "local", "global"]:
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12,4))
@@ -69,6 +72,8 @@ for method in ["none", "GUI", "local", "global"]:
         elif method == "local":
             region(ax1, 0.8, 1.1)
 
+
+
         # height
         ax2.plot(X[method]["user_" + str(user_n)], Z[method]["user_" + str(user_n)])
         ax2.set_xlabel('X [m]')
@@ -96,5 +101,6 @@ for method in ["none", "GUI", "local", "global"]:
             region(ax3, 0.2, 0.5)
 
 
+    plt.rc('axes', prop_cycle=(cycler('color', [(0.1, 0.2, 0.5), 'g', 'b', 'y'])))
     plt.tight_layout()
     plt.savefig("results_plot/" + method + ".png")
