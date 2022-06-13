@@ -37,12 +37,12 @@ X = {}
 Y = {}
 Z = {}
 Quat = {}
-n = 8
+n = 9
 h_base = 0.1
 dist_base = -0.45
 orien_base = 0.0
 
-for method in ["none", "GUI", "local", "global"]:
+for method in ["GUI", "local", "global"]:
     x = {}
     y = {}
     z = {}
