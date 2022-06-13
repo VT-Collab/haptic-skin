@@ -10,18 +10,21 @@ from utils import *
 
 Panda = TrajectoryClient()
 
+def average(lst):
+    return sum(lst) / len(lst)
+
 def region(ax, start_marg, end_marg):
     ax.axvspan(start_marg, end_marg, color='#a1d99b')
 
 def get_idx(X):
-    idx_1 = len(X[X < x_margin_1])
-    idx_2 = idx_1 + len(X[(X > x_margin_1) & (X < x_margin_2)])
+    idx_1 = len(X[X <= x_margin_1])
+    idx_2 = idx_1 + len(X[(X > x_margin_1) & (X <= x_margin_2)])
     idx_3 = idx_2 + len(X[(X > x_margin_2) & (X < x_margin_3)])
     return idx_1, idx_2, idx_3
 
 def mean_error(arr, base):
-    error = np.mean(abs(base - arr)) / len(arr)
-    return np.round(100 * error, 2)
+    error = np.mean(abs(base - arr) / len(arr))
+    return np.round(100 * error, 3)
 
 def quat_error(R):
     diff = []
@@ -35,8 +38,7 @@ Y = {}
 Z = {}
 Quat = {}
 n = 6
-ee_home = -0.2
-h_base = 0.05
+h_base = 0.1
 dist_base = -0.45
 orien_base = 0.0
 
@@ -60,14 +62,14 @@ for method in ["none", "GUI", "local", "global"]:
             z["user_" + str(user_n)] = mean_error(points[2,:][:marg_1_idx], h_base)
             quat["user_" + str(user_n)] = mean_error(quat_error(R[marg_1_idx:marg_2_idx]), orien_base)
             y["user_" + str(user_n)] = mean_error(points[1,:][marg_2_idx:marg_3_idx], dist_base)
-        elif method == "local":
-            quat["user_" + str(user_n)] = mean_error(quat_error(R[:marg_1_idx]), orien_base)
-            z["user_" + str(user_n)] = mean_error(points[2,:][marg_1_idx:marg_2_idx], h_base)
-            y["user_" + str(user_n)] = mean_error(points[1,:][marg_2_idx:marg_3_idx], dist_base)
         elif method == "global":
             z["user_" + str(user_n)] = mean_error(points[2,:][:marg_1_idx], h_base)
             y["user_" + str(user_n)] = mean_error(points[1,:][marg_1_idx:marg_2_idx], dist_base)
             quat["user_" + str(user_n)] = mean_error(quat_error(R[marg_2_idx:marg_3_idx]), orien_base)
+        elif method == "local":
+            quat["user_" + str(user_n)] = mean_error(quat_error(R[:marg_1_idx]), orien_base)
+            z["user_" + str(user_n)] = mean_error(points[2,:][marg_1_idx:marg_2_idx], h_base)
+            y["user_" + str(user_n)] = mean_error(points[1,:][marg_2_idx:marg_3_idx], dist_base)
     X[method] = x
     Y[method] = y
     Z[method] = z
@@ -75,17 +77,18 @@ for method in ["none", "GUI", "local", "global"]:
 
 
 ### user feature errors ###
-GUI_dist_error = Y["GUI"].values()
 GUI_h_error = Z["GUI"].values()
 GUI_orien_error = Quat["GUI"].values()
+GUI_dist_error = Y["GUI"].values()
 
-local_dist_error = Y["local"].values()
-local_h_error = Z["local"].values()
-local_orien_error = Quat["local"].values()
-
-global_dist_error = Y["global"].values()
 global_h_error = Z["global"].values()
+global_dist_error = Y["global"].values()
 global_orien_error = Quat["global"].values()
+
+local_orien_error = Quat["local"].values()
+local_h_error = Z["local"].values()
+local_dist_error = Y["local"].values()
+
 
 ### plot error bars ###
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12,4))
@@ -129,19 +132,19 @@ plt.savefig("results_plot/users_error.png")
 
 
 ### user mean feature errors ###
-GUI_dist_error_mean = np.mean(list(GUI_dist_error))
-GUI_h_error_mean = np.mean(list(GUI_h_error))
-GUI_orien_error_mean = np.mean(list(GUI_orien_error))
+GUI_dist_error_mean = average(list(GUI_dist_error))
+GUI_h_error_mean = average(list(GUI_h_error))
+GUI_orien_error_mean = average(list(GUI_orien_error))
 GUI_mean = [GUI_dist_error_mean, GUI_h_error_mean, GUI_orien_error_mean]
 
-local_dist_error_mean = np.mean(list(local_dist_error))
-local_h_error_mean = np.mean(list(local_h_error))
-local_orien_error_mean = np.mean(list(local_orien_error))
+local_dist_error_mean = average(list(local_dist_error))
+local_h_error_mean = average(list(local_h_error))
+local_orien_error_mean = average(list(local_orien_error))
 local_mean = [local_dist_error_mean, local_h_error_mean, local_orien_error_mean]
 
-global_dist_error_mean = np.mean(list(global_dist_error))
-global_h_error_mean = np.mean(list(global_h_error))
-global_orien_error_mean = np.mean(list(global_orien_error))
+global_dist_error_mean = average(list(global_dist_error))
+global_h_error_mean = average(list(global_h_error))
+global_orien_error_mean = average(list(global_orien_error))
 global_mean = [global_dist_error_mean, global_h_error_mean, global_orien_error_mean]
 
 
