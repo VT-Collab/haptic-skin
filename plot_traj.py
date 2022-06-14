@@ -18,12 +18,11 @@ X = {}
 Y = {}
 Z = {}
 Quat = {}
-n = 4
-colors = np.range(0, 1, 0.1)
-print(colors)
-exit()
+n = 9
+colors = np.linspace(0.3, 1, n).tolist()
 
-for method in ["none", "GUI", "local", "global"]:
+
+for method in ["GUI", "local", "global"]:
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12,4))
     fig.suptitle(method.upper())
 
@@ -60,7 +59,8 @@ for method in ["none", "GUI", "local", "global"]:
     for user_n in range(1, n+1):
 
         # distance
-        ax1.plot(X[method]["user_" + str(user_n)], Y[method]["user_" + str(user_n)], label="user_" + str(user_n))
+        ax1.plot(X[method]["user_" + str(user_n)], Y[method]["user_" + str(user_n)],
+                            label="user_" + str(user_n), c=str(colors[user_n-1]))
         ax1.set_xlabel('X [m]')
         ax1.set_ylabel('Y [m]')
         ax1.set_ylim(-0.5, 0.5)
@@ -75,7 +75,8 @@ for method in ["none", "GUI", "local", "global"]:
 
 
         # height
-        ax2.plot(X[method]["user_" + str(user_n)], Z[method]["user_" + str(user_n)])
+        ax2.plot(X[method]["user_" + str(user_n)], Z[method]["user_" + str(user_n)],
+                            c=str(colors[user_n-1]))
         ax2.set_xlabel('X [m]')
         ax2.set_ylabel('Z [m]')
         ax2.set_ylim(0, 0.8)
@@ -88,7 +89,8 @@ for method in ["none", "GUI", "local", "global"]:
             region(ax2, 0.5, 0.8)
 
         # orientation
-        ax3.plot(X[method]["user_" + str(user_n)], Quat[method]["user_" + str(user_n)])
+        ax3.plot(X[method]["user_" + str(user_n)], Quat[method]["user_" + str(user_n)],
+                            c=str(colors[user_n-1]))
         ax3.set_xlabel('X [m]')
         ax3.set_ylabel('Quaternion')
         ax3.set_ylim(0, 1.5)
@@ -101,6 +103,6 @@ for method in ["none", "GUI", "local", "global"]:
             region(ax3, 0.2, 0.5)
 
 
-    plt.rc('axes', prop_cycle=(cycler('color', [(0.1, 0.2, 0.5), 'g', 'b', 'y'])))
+    # plt.rc('axes', prop_cycle=(cycler('color', 'g', 'b', 'y')))
     plt.tight_layout()
     plt.savefig("results_plot/" + method + ".png")
