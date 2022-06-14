@@ -23,8 +23,8 @@ def get_idx(X):
     return idx_1, idx_2, idx_3
 
 def mean_error(arr, base):
-    error = np.mean(abs(base - arr) / len(arr))
-    return np.round(100 * error, 3)
+    error = np.mean(abs(base - arr))
+    return np.round(error, 3)
 
 def quat_error(R):
     diff = []
@@ -37,10 +37,10 @@ X = {}
 Y = {}
 Z = {}
 Quat = {}
-n = 9
-h_base = 0.1
+h_base = 0.0
 dist_base = -0.45
 orien_base = 0.0
+n = 9
 
 for method in ["GUI", "local", "global"]:
     x = {}
@@ -56,18 +56,20 @@ for method in ["GUI", "local", "global"]:
         ee = data["ee positions"]
         points = np.array(ee).T
         x["user_" + str(user_n)] = points[0,:]
+        marg_0_start = np.where(x["user_" + str(user_n)] > -0.15)
+        marg_0_idx = marg_0_start[0][0]
 
         marg_1_idx, marg_2_idx, marg_3_idx = get_idx(points[0, :])
         if method == "GUI":
-            z["user_" + str(user_n)] = mean_error(points[2,:][:marg_1_idx], h_base)
+            z["user_" + str(user_n)] = mean_error(points[2,:][marg_0_idx:marg_1_idx], h_base)
             quat["user_" + str(user_n)] = mean_error(quat_error(R[marg_1_idx:marg_2_idx]), orien_base)
             y["user_" + str(user_n)] = mean_error(points[1,:][marg_2_idx:marg_3_idx], dist_base)
         elif method == "global":
-            z["user_" + str(user_n)] = mean_error(points[2,:][:marg_1_idx], h_base)
+            z["user_" + str(user_n)] = mean_error(points[2,:][marg_0_idx:marg_1_idx], h_base)
             y["user_" + str(user_n)] = mean_error(points[1,:][marg_1_idx:marg_2_idx], dist_base)
             quat["user_" + str(user_n)] = mean_error(quat_error(R[marg_2_idx:marg_3_idx]), orien_base)
         elif method == "local":
-            quat["user_" + str(user_n)] = mean_error(quat_error(R[:marg_1_idx]), orien_base)
+            quat["user_" + str(user_n)] = mean_error(quat_error(R[marg_0_idx:marg_1_idx]), orien_base)
             z["user_" + str(user_n)] = mean_error(points[2,:][marg_1_idx:marg_2_idx], h_base)
             y["user_" + str(user_n)] = mean_error(points[1,:][marg_2_idx:marg_3_idx], dist_base)
     X[method] = x
@@ -163,6 +165,6 @@ plt.bar(br2, local_mean, width = barWidth, color ='#b3de69', label = 'Local')
 plt.bar(br3, global_mean, width = barWidth, color ='#ff7f00', label = 'Global')
 
 plt.xticks(br2, features)
-
+plt.ylabel('Mean Percent Error')
 plt.legend()
 plt.savefig("results_plot/users_mean_error.png")

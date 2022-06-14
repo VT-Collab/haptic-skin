@@ -72,8 +72,6 @@ for method in ["GUI", "local", "global"]:
         elif method == "local":
             region(ax1, 0.8, 1.1)
 
-
-
         # height
         ax2.plot(X[method]["user_" + str(user_n)], Z[method]["user_" + str(user_n)],
                             c=str(colors[user_n-1]))
