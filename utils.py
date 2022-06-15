@@ -10,6 +10,9 @@ from tkinter import *
 import serial
 
 
+########## User number list ##########
+USERS = [1,2,3,4,5,7,8,9,10]
+
 ########## robot home joint positions ##########
 HOME = [-1.45, -0.42, -0.88, -2.46, -0.8, 1.72, 0.8]
 

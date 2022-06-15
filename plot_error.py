@@ -40,14 +40,14 @@ Quat = {}
 h_base = 0.0
 dist_base = -0.45
 orien_base = 0.0
-n = 9
+n = len(USERS)
 
 for method in ["GUI", "local", "global"]:
     x = {}
     y = {}
     z = {}
     quat = {}
-    for user_n in range(1, n+1):
+    for user_n in USERS:
         filename = "data/demos/user_" + str(user_n) + "_" + method +  ".pkl"
         file = open(filename, "rb")
         data = pickle.load(file)
