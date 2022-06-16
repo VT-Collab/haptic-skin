@@ -141,5 +141,5 @@ def plot_improvement(users):
     plt.bar(range(3), improve_mean, yerr=improve_sem)
     plt.show()
 
-plot_improvement([1, 2, 3, 4, 5, 7, 8, 9, 10])
+plot_improvement([1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12])
 plot_active_times(0.01)

@@ -21,7 +21,7 @@ Quat = {}
 n = len(USERS)
 colors = np.linspace(0.3, 1, n).tolist()
 
-for method in ["GUI", "local", "global"]:
+for method in ["none", "GUI", "local", "global"]:
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12,4))
     fig.suptitle(method.upper())
 
