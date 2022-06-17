@@ -93,36 +93,58 @@ def segment_features(filename, method):
                 counter[2] += 1
     return np.array([error[0]/counter[0], error[1]/counter[1], error[2]/counter[2]])
 
-def active_time(filename, threshold):
+def stop_time(filename, threshold):
     t, q, xyz, rot, p = process_run(filename)
-    count = 0
+    count = 0.0
     for timestep in range(1, len(t)):
         prev_joint = q[timestep-1,:]
         curr_joint = q[timestep,:]
-        if np.linalg.norm(curr_joint - prev_joint) >= threshold:
-            count += 1
-    return 100.0 * count / (len(t) - 1.0)
+        if np.linalg.norm(curr_joint - prev_joint) <= threshold:
+            count += t[timestep] - t[timestep-1]
+    return count
 
 def improvement(user_number, method):
     filename = "user_" + str(user_number) + "_" + method + ".pkl"
     return segment_features(filename, method)
 
-def plot_active_times(threshold=0.01):
+def plot_times():
     times_gui = []
     times_loc = []
     times_glo = []
     for filename in os.listdir("data"):
-        perc_active = active_time(filename, threshold)
+        t, q, xyz, rot, p = process_run(filename)
         if filename[-7] == "G":
-            times_gui.append(perc_active)
+            times_gui.append(t[-1])
         if filename[-7] == "c":
-            times_loc.append(perc_active)
+            times_loc.append(t[-1])
         if filename[-7] == "b":
-            times_glo.append(perc_active)
+            times_glo.append(t[-1])
     times = np.array([times_gui, times_loc, times_glo])
     times_mean = np.mean(times, axis=1)
     times_sem = np.std(times, axis=1) / np.sqrt(len(times_gui))
-    with open('times.csv', 'w') as f:
+    with open('total_time.csv', 'w') as f:
+        writer = csv.writer(f)
+        for idx in range(len(times_gui)):
+            writer.writerow([times_gui[idx], times_loc[idx], times_glo[idx]])
+    plt.bar(range(3), times_mean, yerr=times_sem)
+    plt.show()
+
+def plot_stop_times(threshold=0.01):
+    times_gui = []
+    times_loc = []
+    times_glo = []
+    for filename in os.listdir("data"):
+        time_stopped = stop_time(filename, threshold)
+        if filename[-7] == "G":
+            times_gui.append(time_stopped)
+        if filename[-7] == "c":
+            times_loc.append(time_stopped)
+        if filename[-7] == "b":
+            times_glo.append(time_stopped)
+    times = np.array([times_gui, times_loc, times_glo])
+    times_mean = np.mean(times, axis=1)
+    times_sem = np.std(times, axis=1) / np.sqrt(len(times_gui))
+    with open('stop_time.csv', 'w') as f:
         writer = csv.writer(f)
         for idx in range(len(times_gui)):
             writer.writerow([times_gui[idx], times_loc[idx], times_glo[idx]])
@@ -148,5 +170,25 @@ def plot_improvement(users):
     plt.bar(range(3), improve_mean, yerr=improve_sem)
     plt.show()
 
-plot_improvement([1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12])
-plot_active_times(0.01)
+
+
+plot_improvement([1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13])
+plot_stop_times(0.001)
+plot_times()
+
+
+
+# def plot_traj(users):
+#     for user_number in users:
+#         filename1 = "user_" + str(user_number) + "_GUI.pkl"
+#         filename2 = "user_" + str(user_number) + "_local.pkl"
+#         filename3 = "user_" + str(user_number) + "_global.pkl"
+#         _, _, xyz1, _, _ = process_run(filename1)
+#         _, _, xyz2, _, _ = process_run(filename2)
+#         _, _, xyz3, _, _ = process_run(filename3)
+#         plt.plot(xyz1[:,0], xyz1[:,1], 'b-')
+#         plt.plot(xyz2[:,0], xyz2[:,1], 'g-')
+#         plt.plot(xyz3[:,0], xyz3[:,1], 'r-')
+#     plt.show()
+
+# plot_traj([1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13])
