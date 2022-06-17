@@ -3,6 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from pyquaternion import Quaternion
+import csv
 
 x_margin_1 = 0.15
 x_margin_2 = 0.45
@@ -121,7 +122,10 @@ def plot_active_times(threshold=0.01):
     times = np.array([times_gui, times_loc, times_glo])
     times_mean = np.mean(times, axis=1)
     times_sem = np.std(times, axis=1) / np.sqrt(len(times_gui))
-    print(times)
+    with open('times.csv', 'w') as f:
+        writer = csv.writer(f)
+        for idx in range(len(times_gui)):
+            writer.writerow([times_gui[idx], times_loc[idx], times_glo[idx]])
     plt.bar(range(3), times_mean, yerr=times_sem)
     plt.show()
 
@@ -137,7 +141,10 @@ def plot_improvement(users):
     improve = np.array([improve_gui, improve_loc, improve_glo])
     improve_mean = np.mean(improve, axis=1)
     improve_sem = np.std(improve, axis=1) / np.sqrt(len(users))
-    print(improve)
+    with open('improve.csv', 'w') as f:
+        writer = csv.writer(f)
+        for idx in range(len(improve_gui)):
+            writer.writerow([improve_gui[idx], improve_loc[idx], improve_glo[idx]])
     plt.bar(range(3), improve_mean, yerr=improve_sem)
     plt.show()
 
